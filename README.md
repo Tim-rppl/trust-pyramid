@@ -114,25 +114,23 @@ she slept; in the month before the talk she shipped 3,000.
 
 ## How it works
 
-Follow one change from request to merge:
+The agent keeps fixing its own code until the checks pass. You only look at the result:
 
 ```mermaid
-flowchart TD
-    A["You ask the agent for a feature"] --> B["The agent writes the code"]
-    B --> C{"The agent says it is done.<br/>Checks run on their own"}
-    C -- "A check fails. The error message<br/>says how to fix it" --> B
-    C -- "All pass" --> D{"Commit.<br/>All checks run again"}
-    D -- "Something fails" --> B
-    D -- "All pass" --> E{"Pull request on GitHub.<br/>Checks run with the rules from main,<br/>and an AI reviewer looks for problems"}
-    E -- "A problem, proven by a test" --> B
-    E -- "All pass" --> F["You look at the results<br/>and merge"]
-    E -. "A new kind of mistake" .-> G["It becomes a new rule.<br/>Every later check includes it"]
-    G -.-> C
+flowchart LR
+    A["You ask for<br/>a feature"] --> B["The agent<br/>writes the code"]
+    B --> C{"Automatic<br/>checks"}
+    C -- "Fail: the error<br/>says how to fix it" --> B
+    C -- "Pass" --> D["You look at<br/>the results and merge"]
+    C -. "A new kind<br/>of mistake" .-> E["It becomes<br/>a new check"]
+    E -.-> C
 ```
 
 The checks are ordinary scripts: lint rules, type checks, tests, and a short test run in the real
-app. They cost nothing and give the same answer every time. The AI reviewer only looks for what the
-scripts do not cover yet, and a problem it reports counts only when a test proves it.
+app. They cost nothing and give the same answer every time. On pull requests an AI reviewer also
+looks for what the scripts do not cover yet; a problem it reports counts only when a test proves it.
+
+The same checks run at three points, and once more by you:
 
 | Check | When it runs | Can it be skipped? |
 |---|---|---|
