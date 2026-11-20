@@ -114,25 +114,32 @@ she slept; in the month before the talk she shipped 3,000.
 
 ## How it works
 
+Follow one change from request to merge:
+
 ```mermaid
-flowchart TB
-    A["1 · Structure and APIs<br/>make the wrong thing hard to write"] --> B["2 · Static analysis<br/>types, boundaries, project lint rules, tests"]
-    B --> C["3 · Verification<br/>run the app, screenshots, smoke flow"]
-    C --> D["4 · Prose<br/>a short AGENTS.md"]
-    D --> E["5 · AI reviewer<br/>finds candidates; evidence decides"]
-    E --> F["6 · Human<br/>reviews evidence, not diffs"]
-    E -. "confirmed findings become rules" .-> B
+flowchart TD
+    A["You ask the agent for a feature"] --> B["The agent writes the code"]
+    B --> C{"The agent says it is done.<br/>Checks run on their own"}
+    C -- "A check fails. The error message<br/>says how to fix it" --> B
+    C -- "All pass" --> D{"Commit.<br/>All checks run again"}
+    D -- "Something fails" --> B
+    D -- "All pass" --> E{"Pull request on GitHub.<br/>Checks run with the rules from main,<br/>and an AI reviewer looks for problems"}
+    E -- "A problem, proven by a test" --> B
+    E -- "All pass" --> F["You look at the results<br/>and merge"]
+    E -. "A new kind of mistake" .-> G["It becomes a new rule.<br/>Every later check includes it"]
+    G -.-> C
 ```
 
-Higher layers are cheaper and give the same answer every time, so the skill uses them first. Gates
-make sure each layer runs:
+The checks are ordinary scripts: lint rules, type checks, tests, and a short test run in the real
+app. They cost nothing and give the same answer every time. The AI reviewer only looks for what the
+scripts do not cover yet, and a problem it reports counts only when a test proves it.
 
-| When | Gate | Can it be skipped? |
+| Check | When it runs | Can it be skipped? |
 |---|---|---|
-| The agent tries to finish | Stop hook | It is fast feedback; local hooks can be switched off |
-| `git commit` | pre-commit | Only with `--no-verify` |
-| Pull request | CI, using the base branch's gate files | No, with branch protection |
-| Merge | You, reading the evidence | Your call |
+| Stop hook | every time the agent says it is done | only if someone turns it off on their machine |
+| pre-commit | every commit | only with `git commit --no-verify` |
+| CI | every pull request, using the rules from `main`, so a pull request cannot loosen them | no, once branch protection is on |
+| You | before merging | your call |
 
 ## Should you use it?
 
