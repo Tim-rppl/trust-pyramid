@@ -59,9 +59,12 @@ when the package manager supports it.
   when a Stop hook exits 0; Claude Code accepts it).
 - Fail: writes the failures to stderr and exits 2. Both agents treat this as "keep working" and
   feed stderr back as the reason.
-- After 3 failed attempts it blocks once more with "stop and explain the failure to the user", then
-  lets the turn end with a visible `systemMessage`. No infinite loops, and the hand-over is never
-  silent (stderr on exit 0 is not shown to the model). Claude Code also has its own cap.
+- Runs only checks marked `|fast` in `scripts/check.sh` (typecheck, lint, quick tests), so ending a
+  turn costs seconds. Pre-commit and CI run everything.
+- After `STOP_GATE_MAX_ATTEMPTS` failed attempts (default 2) it blocks once more with "stop and
+  explain the failure to the user", then lets the turn end with a visible `systemMessage`. The
+  failure message also tells the agent to hand over at once when the fix needs a protected file.
+  In a benchmark, a 3-attempt cap plus protected-file failures made one task cost 4x the baseline.
 
 Registration (staged by the agent, installed by the user with `scripts/install-agent-hooks.sh`,
 because each agent protects its own config folder; in testing, Claude could not write

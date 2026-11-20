@@ -42,7 +42,7 @@
 这套方法来自 Lauren Tan 的演讲
 [《All Code Is Slop (Except Mine)》](https://www.youtube.com/watch?v=O_zcc6Xl12g)（AI Engineer Code Summit 2026），
 并在此基础上加上了"强制执行的 AI 审核员"这一层。她本人也开源了自己的 skill 集合
-[pstack](https://github.com/cursor/plugins/tree/main/pstack)，两者的区别和搭配方式见[搭配 pstack 使用](#搭配-pstack-使用推荐)。
+[pstack](https://github.com/cursor/plugins/tree/main/pstack)，两者的区别和搭配方式见[搭配 pstack 使用](#搭配-pstack-使用可选)。
 
 ## 原理
 
@@ -65,6 +65,26 @@ flowchart TB
 | `git commit` | pre-commit hook | 只能用 `--no-verify` 绕过 |
 | 开 PR | CI：检查、冒烟、AI 审核、审核关卡，**使用主分支上的关卡文件** | **不能**，配合分支保护和代码负责人审批 |
 | 合并 | 你根据证据批准 | 由你决定 |
+
+## 实测结果
+
+在推荐之前，我们用真实的 Claude Code 和 Codex 测试过 Trust Pyramid（[完整报告，英文](docs/BENCHMARK.md)）。简单说：
+
+- **项目专属规则有效。** 目录边界、"这里绝不能做某事"这类规则，每次都拦住了埋入的错误；审核发现的问题变成测试后，同类错误不会再出现。
+- **最初的关卡设计能被绕过**（在 PR 里直接关掉规则）。现在 CI 用主分支上的关卡文件检查每个 PR，7 种绕过方式全部被拦住。
+- **当前最强的模型单次任务已经做得很好。** 不装任何工具的 Claude Opus 5.5 就能处理并发竞争、修改丢失和跨功能不变量。每个任务都跑完整流程，成本约 4 倍，却没有多抓到问题。所以默认采用**轻量模式**。
+
+## 两种模式
+
+| | 轻量模式（默认） | 完整模式 |
+|---|---|---|
+| 项目 lint 规则、目录边界、测试 | 有 | 有，另加属性测试 |
+| 可信 CI、代码负责人审批、pre-commit | 有 | 有 |
+| Stop hook | 只跑快速检查，最多拦 2 次 | 同左 |
+| AI 审核员 | 每个 PR 在 CI 里跑一次 | 每个任务后也跑 |
+| 运行时验证 | 冒烟流程在 CI 里跑 | 每次改动用户可见的功能都跑 |
+
+以下情况建议用**完整模式**：编码 agent 用的是较小或较便宜的模型、参与的人或 agent 很多、代码涉及钱、权限或个人数据。随时可以切换。
 
 ## 快速开始
 
@@ -111,11 +131,11 @@ mkdir -p ~/.agents/skills && cp -R trust-pyramid/skills/trust-pyramid ~/.agents/
 agent 会先简单问你几个问题，写一份计划，**等你确认后**再逐层搭建。最后它会证明每一项检查都
 真的会报错，用一个小功能完整演示一遍循环，并用大白话向你汇报。
 
-## 搭配 pstack 使用（推荐）
+## 搭配 pstack 使用（可选）
 
 Lauren Tan 本人也开源了她的 skill 集合
 [**pstack**](https://github.com/cursor/plugins/tree/main/pstack)（MIT 许可证）。它和本项目是两个不同的工具，
-各自解决问题的一半，搭配使用效果最好。
+各自解决问题的一半，可以一起使用。在我们的实测中，用当前最强的模型做单次任务时，pstack 没有改变结果，用量却更多，所以请把它当作一种工作方式的选择，而不是质量上的必需品。
 
 | | pstack | Trust Pyramid |
 |---|---|---|

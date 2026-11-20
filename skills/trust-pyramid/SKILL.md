@@ -33,6 +33,28 @@ and adds an AI reviewer layer for the early phase when there are few rules and t
    (`scripts/trusted-check.sh`), new suppression comments fail, and humans own the gate files.
 8. **Fix the inner loop before automating the outer loop.**
 
+## Profiles: lite (default) and full
+
+Benchmarks with frontier models (see the repo's `docs/BENCHMARK.md`) showed that a strong model
+already gets most single tasks right, including races and cross-feature invariants. Per-task AI
+review and repeated Stop-hook loops then add cost (~4x per task) without catching more. What paid off:
+project-specific rules a model cannot know, regression tests, and gates an agent cannot switch off.
+So the default is lite.
+
+| Part | lite (default) | full |
+|---|---|---|
+| Structure + single-entry APIs (Phase 2) | yes | yes |
+| Project lint rules + boundary rules + tests (Phase 3) | yes | yes, plus property tests |
+| Runtime verification (Phase 4) | smoke flow in CI; verify CLI available, not required per task | verify CLI + smoke on every user-visible change |
+| Stop hook | fast checks only (`check.sh --fast`), 2 attempts | same |
+| Pre-commit + trusted CI + CODEOWNERS (Phase 5) | yes | yes |
+| AI reviewer (Phase 6) | once per PR in CI, enforced by `review-gate` | also locally after each task |
+| Formal methods / UI fuzzing | no | when the plan justifies it |
+
+Recommend **full** when: the coding agent uses a smaller or cheaper model, many agents or people
+contribute, or the code handles money, permissions or personal data at scale. Ask in Phase 0 and
+record the choice in `docs/QUALITY.md`; the user can switch later.
+
 ## Workflow
 
 Follow these phases in order. Stop after Phase 1 and wait for the user's approval.
@@ -44,7 +66,7 @@ product in one sentence, core user-facing features, stack, package manager and r
 UI languages, deployment target, areas involving money/permissions/privacy, external APIs
 (AI models, payments), the user's coding level, new vs existing project.
 Detect the host agent: Claude Code (`.claude/`, `CLAUDE.md`) or Codex (`.codex/`, `AGENTS.md`).
-If unsure, install gates for both.
+If unsure, install gates for both. Propose a profile (lite unless the full criteria apply).
 
 ### Phase 1 - Plan (then stop for approval)
 
@@ -140,7 +162,7 @@ JavaScript/Node because the verification tooling (Playwright) is; for non-Node s
 ## Daily use (after setup)
 
 - **A mistake happened twice** → follow `references/add-rule.md`.
-- **Before a PR** → run the reviewer locally (`references/layer-5-ai-reviewer.md`); CI runs it anyway.
+- **Before a PR** → CI runs the reviewer; in the full profile also run it locally (`references/layer-5-ai-reviewer.md`).
 - **Weekly sweep** → run the reviewer over the whole repo to collect rule candidates.
 - **New feature** → check passes, verify in the running app, update feature map + smoke, attach evidence.
 

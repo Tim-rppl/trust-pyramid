@@ -64,3 +64,8 @@ Each item cost real time during a reference rollout on a production TypeScript/R
     dialogs to the user. Forbid it in instructions; use headless Playwright only.
 27. **Benchmarks on laptops.** Six parallel agent streams froze an 8 GB machine and used up a
     5-hour subscription quota in about 30 minutes. Run one stream at a time and estimate usage first.
+28. **A frontier model already handles most single tasks.** Claude Opus 5.5 with no tooling solved
+    races (atomic quota), lost updates (conditional update) and cross-feature invariants (trash) on
+    its own. Gates did not catch more on single tasks and cost ~4x per task; hence the lite profile.
+29. **Check your benchmark thresholds.** "Everyone missed the timeout" turned out to be a 30-second
+    test limit against a 30-second timeout. Read the code before concluding a model missed something.

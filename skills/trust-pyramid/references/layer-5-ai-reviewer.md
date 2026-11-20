@@ -3,6 +3,10 @@
 Early on there are few rules and the human may not be able to spot problems. An AI reviewer finds
 candidates; **evidence, not the reviewer's opinion, decides**; confirmed problems become rules.
 
+**When to run it:** once per pull request in CI (both profiles). Running it after every task (full
+profile only) found nothing extra with a frontier model in benchmarks and added cost; it is worth it
+with smaller models or high-risk code.
+
 ## Two ways a reviewer layer gets skipped, and the fix for each
 
 | Failure | Fix |

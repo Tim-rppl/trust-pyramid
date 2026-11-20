@@ -14,7 +14,8 @@ typescript-eslint if it supports the installed TypeScript major; `node --test` o
 **First rules:**
 - UI cannot import `firebase/*` or `firebase-admin`; only `web/src/services` talks to Firebase.
 - No OpenAI-compatible base URLs, API keys or model SDK imports outside `server/src/adapters/ai`.
-- The AI adapter sets timeout, max tokens and retry cap, and records token usage per call.
+- The AI adapter sets timeout, max tokens and retry cap, and records token usage per call. Retries
+  share one total deadline for user-facing requests; timeouts are not retried there.
 - Model JSON (summaries, structured translations) must pass a schema (zod/valibot) before use;
   failures go through one fallback path, never rendered raw.
 - Transcripts, prompts and model outputs never appear in logs.

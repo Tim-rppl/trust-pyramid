@@ -27,7 +27,9 @@ Wrap anything that is easy to misuse so there is exactly one correct way to do i
 
 - **AI client** (`adapters/ai`): timeout, retry with cap, max tokens, rate limit, usage/cost
   logging, and schema validation of model output. Business code never imports a model SDK or
-  fetches a model URL directly.
+  fetches a model URL directly. **Give every user-facing call a total deadline across retries**
+  (for example 20 seconds) and do not retry timeouts on interactive paths: a 15-second timeout
+  with two retries made users wait ~46 seconds for an error in a benchmark.
 - **Config**: read and validate environment variables in one module at startup; missing values
   fail fast. Secrets exist only on the server.
 - **i18n**: one `t()` for user-visible text when the UI is multilingual.

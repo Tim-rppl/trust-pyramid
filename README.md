@@ -45,7 +45,7 @@ The approach follows Lauren Tan's talk
 [*All Code Is Slop (Except Mine)*](https://www.youtube.com/watch?v=O_zcc6Xl12g) (AI Engineer Code
 Summit 2026) and adds the enforced reviewer layer. She also open-sourced her own skills as
 [pstack](https://github.com/cursor/plugins/tree/main/pstack); see
-[Pair it with pstack](#pair-it-with-pstack-recommended) for how the two differ and work together.
+[Pair it with pstack](#pair-it-with-pstack-optional) for how the two differ and work together.
 
 ## How it works
 
@@ -68,6 +68,32 @@ The gates make sure every layer actually runs:
 | `git commit` | pre-commit hook | Only with `--no-verify` |
 | Pull request | CI: checks, smoke, AI review, review gate - using the **base branch's** gate files | **No** - with branch protection and code owners |
 | Merge | Your approval, based on evidence | It is your call |
+
+## What we measured
+
+We tested Trust Pyramid with real Claude Code and Codex runs before recommending it
+([full write-up](docs/BENCHMARK.md)). In short:
+
+- **Project-specific rules work.** Boundary and "never do X here" rules caught their planted bugs
+  every time, and findings turned into tests stopped the same bugs from coming back.
+- **The first gate design could be bypassed** (rule switched off in the PR itself). CI now checks
+  every PR with the base branch's gate files; all seven bypass attempts are blocked.
+- **A frontier model is already good at single tasks.** Claude Opus 5.5 with no tooling handled
+  races, lost updates and cross-feature invariants. Running the full pyramid on every task cost
+  about 4x without catching more. That is why the default profile is **lite**.
+
+## Profiles
+
+| | lite (default) | full |
+|---|---|---|
+| Project lint rules, boundaries, tests | yes | yes, plus property tests |
+| Trusted CI, CODEOWNERS, pre-commit | yes | yes |
+| Stop hook | fast checks only, 2 attempts | same |
+| AI reviewer | once per PR in CI | also after every task |
+| Runtime verification | smoke flow in CI | on every user-visible change |
+
+Choose **full** for smaller or cheaper coding models, many contributors, or high-risk code
+(money, permissions, personal data). You can switch at any time.
 
 ## Quick start
 
@@ -115,11 +141,13 @@ The agent interviews you briefly, writes a plan, **waits for your approval**, th
 layers one by one. At the end it proves every check can fail, runs a demo loop on a small
 feature, and reports in plain language.
 
-## Pair it with pstack (recommended)
+## Pair it with pstack (optional)
 
 Lauren Tan open-sourced her own skills as
 [**pstack**](https://github.com/cursor/plugins/tree/main/pstack) (MIT). It is a different tool that
-solves a different half of the problem, and the two work well together.
+solves a different half of the problem, and the two can be used together. In our benchmark pstack
+did not change results on single tasks with frontier models and used more tokens, so treat it as an
+option for how you like to work, not a quality requirement.
 
 | | pstack | Trust Pyramid |
 |---|---|---|

@@ -2,8 +2,10 @@
 # Stop hook for Claude Code and Codex: when the agent tries to finish, run the checks.
 #   pass -> print {} on stdout, exit 0   (Codex requires JSON on stdout for exit 0)
 #   fail -> failures on stderr, exit 2   (both agents keep working with stderr as the reason)
-# After 3 failed fix attempts, block once more with "stop and explain to the user", then let the
-# turn end with a visible systemMessage. No infinite loops, and the hand-over is never silent.
+# Runs only the fast checks (scripts/check.sh --fast); pre-commit and CI run everything.
+# After STOP_GATE_MAX_ATTEMPTS failed attempts (default 2), block once more with "stop and explain
+# to the user", then let the turn end with a visible systemMessage. No loops, no silent hand-over.
+# A failure the agent cannot fix (a protected gate file) should be handed over at once, not retried.
 [ -t 0 ] || cat >/dev/null  # hook input JSON on stdin is not needed
 cd "$(git rev-parse --show-toplevel)" || { echo '{}'; exit 0; }
 
@@ -12,7 +14,9 @@ counter=$state_dir/stop-gate-count
 handover=$state_dir/stop-gate-handover
 mkdir -p "$state_dir"
 
-if output=$(scripts/check.sh 2>&1); then
+max_attempts=${STOP_GATE_MAX_ATTEMPTS:-2}
+
+if output=$(scripts/check.sh --fast 2>&1); then
   rm -f "$counter" "$handover"
   echo '{}'
   exit 0
@@ -21,16 +25,16 @@ fi
 if [[ -f "$handover" ]]; then
   # The agent has already been told to stop and explain; let the turn end, visibly.
   rm -f "$counter" "$handover"
-  echo '{"systemMessage": "Quality checks are still failing after 3 fix attempts. A human needs to look at scripts/check.sh output."}'
+  echo '{"systemMessage": "Quality checks are still failing after the allowed fix attempts. A human needs to look at scripts/check.sh output."}'
   exit 0
 fi
 
 count=$(( $(cat "$counter" 2>/dev/null || echo 0) + 1 ))
 echo "$count" > "$counter"
-if (( count > 3 )); then
+if (( count > max_attempts )); then
   touch "$handover"
   {
-    echo "Checks still fail after 3 attempts. Stop trying to fix them now."
+    echo "Checks still fail after $max_attempts attempts. Stop trying to fix them now."
     echo "Tell the user in plain language which check fails, what you tried, and what you need from them. Then finish."
     echo "$output"
   } >&2
@@ -38,8 +42,9 @@ if (( count > 3 )); then
 fi
 
 {
-  echo "Checks failed (attempt $count of 3). Fix the root cause before finishing."
-  echo "Do not disable rules, skip tests or weaken assertions."
+  echo "Checks failed (attempt $count of $max_attempts). Fix the root cause before finishing."
+  echo "Do not disable rules, skip tests or weaken assertions. If the fix needs a protected gate file you"
+  echo "cannot edit, stop now and list the exact edits for the user instead of trying again."
   echo "$output"
 } >&2
 exit 2
