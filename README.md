@@ -120,15 +120,13 @@ The agent keeps fixing its own code until the checks pass. You only look at the 
 flowchart LR
     A["You ask for<br/>a feature"] --> B["The agent<br/>writes the code"]
     B --> C{"Automatic<br/>checks"}
-    C -- "Fail: the error<br/>says how to fix it" --> B
-    C -- "Pass" --> D["You look at<br/>the results and merge"]
-    C -. "A new kind<br/>of mistake" .-> E["It becomes<br/>a new check"]
-    E -.-> C
+    C -- "Fail: the error says how to fix it" --> B
+    C -- "Pass" --> D["You look at the<br/>results and merge"]
 ```
 
 The checks are ordinary scripts: lint rules, type checks, tests, and a short test run in the real
 app. They cost nothing and give the same answer every time. On pull requests an AI reviewer also
-looks for what the scripts do not cover yet; a problem it reports counts only when a test proves it.
+looks for what the scripts do not cover yet; a problem it reports counts only when a test proves it. When a new kind of mistake gets through, it becomes a new check ([what to expect](#what-to-expect)).
 
 The same checks run at three points, and once more by you:
 
