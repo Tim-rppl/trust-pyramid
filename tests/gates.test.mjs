@@ -144,7 +144,7 @@ test('gates still run when the scripts were committed without the executable bit
   assert.match(trusted.stdout, /✓ no new suppression comments/);
 });
 
-test('the Stop hook finds the repository from its own location, and fails loudly when it cannot', () => {
+test('the Stop hook finds the repository from its own location, and hands over visibly when it cannot', () => {
   const { dir } = repoWithChecks();
   const elsewhere = mkdtempSync(join(tmpdir(), 'trust-pyramid-cwd-'));
   try {
@@ -158,14 +158,36 @@ test('the Stop hook finds the repository from its own location, and fails loudly
     assert.equal(blocked.status, 2, 'checks must run even though the hook started outside the repository');
     assert.match(blocked.stderr, /not ok - value/);
 
-    // A copy of the script that is not inside any repository must not pass silently.
+    // A copy of the script that is not inside any repository must not pass silently, and must not block:
+    // exit 2 would loop, because the agent cannot fix a missing repository.
     copyTemplate('scripts/stop-gate.sh', elsewhere);
     const lost = spawnSync('bash', [join(elsewhere, 'scripts/stop-gate.sh')], { cwd: elsewhere, encoding: 'utf8', input: '{}', env: { ...process.env, GIT_CEILING_DIRECTORIES: dirname(elsewhere) } });
-    assert.equal(lost.status, 2);
+    assert.equal(lost.status, 0);
     assert.match(lost.stderr, /stop-gate: cannot find the repository/);
-    assert.equal(lost.stdout, '');
+    assert.match(JSON.parse(lost.stdout).systemMessage, /cannot find the repository.*checks did not run/);
   } finally {
     rmSync(elsewhere, { recursive: true, force: true });
+  }
+});
+
+test('the Codex Stop hook command works from a subdirectory and hands over visibly outside a repository', () => {
+  const { dir } = repoWithChecks();
+  const { command } = JSON.parse(readFileSync(join(TEMPLATES, 'codex/hooks.json'), 'utf8')).hooks.Stop[0].hooks[0];
+  const outside = mkdtempSync(join(tmpdir(), 'trust-pyramid-cwd-'));
+  try {
+    const hook = cwd => spawnSync('bash', ['-c', command], { cwd, encoding: 'utf8', input: '{}', env: { ...process.env, GIT_CEILING_DIRECTORIES: dirname(outside) } });
+    const sub = join(dir, 'app');
+    assert.deepEqual(JSON.parse(hook(sub).stdout), {}, 'run from a subdirectory, the gate runs and passes');
+    writeFiles(dir, { 'app/value.txt': 'broken\n' });
+    const blocked = hook(sub);
+    assert.equal(blocked.status, 2);
+    assert.match(blocked.stderr, /not ok - value/);
+
+    const lost = hook(outside);
+    assert.equal(lost.status, 0, 'outside a repository it must not fail with exit 127 or block');
+    assert.match(JSON.parse(lost.stdout).systemMessage, /quality checks did not run/);
+  } finally {
+    rmSync(outside, { recursive: true, force: true });
   }
 });
 

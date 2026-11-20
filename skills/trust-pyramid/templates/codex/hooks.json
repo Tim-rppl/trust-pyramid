@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/scripts/stop-gate.sh\"",
+            "command": "if r=$(git rev-parse --show-toplevel 2>/dev/null) && [ -f \"$r/scripts/stop-gate.sh\" ]; then exec bash \"$r/scripts/stop-gate.sh\"; else echo '{\"systemMessage\": \"trust-pyramid Stop hook: scripts/stop-gate.sh not found from the current directory, so the quality checks did not run.\"}'; fi",
             "timeout": 600,
             "statusMessage": "Running quality checks"
           }

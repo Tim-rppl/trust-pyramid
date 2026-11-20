@@ -9,7 +9,9 @@ Fixes from installing the skill on a real project on Windows 11 (issues #1-#15).
   through `node` (`lint/oxlint.mjs`); Python tests fall back to `python` / `py -3`; CI also runs on
   `windows-latest`.
 - **Gates:** `no-suppressions.sh` no longer flags itself; the Stop hook finds the repository from
-  its own location and fails loudly otherwise; the PR that introduces the gates gets a labelled
+  its own location; when it cannot, it says so in a visible `systemMessage` instead of blocking in a
+  loop (the Codex hook command also works from subfolders and no longer fails with exit 127 outside a
+  repository); the PR that introduces the gates gets a labelled
   "Gate bootstrap" result instead of exit code 128; trusted-check uses the base branch's npm
   `scripts`; gate interceptions are logged (`scripts/gate-log.sh`, `scripts/gate-report.mjs`).
 - **Setup:** branch protection availability and team size are checked in Phase 0 (GitHub Free

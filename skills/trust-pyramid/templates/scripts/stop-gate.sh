@@ -8,9 +8,13 @@
 # A failure the agent cannot fix (a protected gate file) should be handed over at once, not retried.
 [ -t 0 ] || cat >/dev/null  # hook input JSON on stdin is not needed
 # Find the repository from this script's location, not the current directory: the agent may have
-# changed directory, or the host may start hooks elsewhere. Never pass silently when it cannot be found.
+# changed directory, or the host may start hooks elsewhere. If it cannot be found, say so visibly
+# (systemMessage) and let the turn end: blocking (exit 2) would loop, because the agent cannot fix it.
 root=$(git -C "$(dirname "${BASH_SOURCE[0]}")/.." rev-parse --show-toplevel 2>/dev/null) && cd "$root" || {
-  echo "stop-gate: cannot find the repository from $0" >&2; exit 2; }
+  msg="stop-gate: cannot find the repository from $0, so the quality checks did not run. Run scripts/check.sh in the repository."
+  echo "$msg" >&2
+  printf '{"systemMessage": "%s"}\n' "$(printf '%s' "$msg" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+  exit 0; }
 
 state_dir=.quality-state
 counter=$state_dir/stop-gate-count
