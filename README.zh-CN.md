@@ -15,6 +15,10 @@
 
 [English](README.md) · **简体中文**
 
+<img src="docs/media/demo-en.gif" alt="Trust Pyramid 演示：agent 在浏览器里直接调用模型 API，Stop hook 用附带改法的 lint 报错拦下，agent 从根上修复，冒烟流程在运行中的应用里证明功能正常，独立 AI 审核员的发现用「失败到通过」的测试证据逐条处理" width="100%">
+
+<sub>终端输出和应用截图都是从一个演示项目里真实录下的。agent 的修改由脚本重放；审核发现来自一次真实的、独立的 AI 审核。</sub>
+
 </div>
 
 ---

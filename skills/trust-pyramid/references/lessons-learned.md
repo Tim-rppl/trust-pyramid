@@ -42,3 +42,8 @@ Each item cost real time during a reference rollout on a production TypeScript/R
     match three elements. Reset data before each run and scope assertions to the new item.
 19. **Verification servers do not reload.** After backend edits the smoke flow hit the old code
     (404s). Restart the stack (`down`, `up`).
+20. **Prove findings against the reviewed commit, not `main`.** In the demo, the reviewer's two real
+    bugs were introduced by the PR itself; on `main` the code did not exist, so a test could only
+    fail at import. Record `reviewed_sha` with every review.
+21. **Review the gate too.** The independent reviewer flagged that an unvalidated `reviewed_sha`
+    let anyone pick the "red" commit. The gate now checks it is a real ancestor of HEAD.

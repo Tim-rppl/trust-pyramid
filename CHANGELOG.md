@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.1 - 2026-11-20
+
+- Review gate proves confirmed findings against the reviewed commit (`reviewed_sha` in
+  `review.json`, written by CI), so bugs introduced by the PR itself can be proven too.
+- Review gate rejects a reviewed commit that is missing, not an ancestor of HEAD, or HEAD itself,
+  and prints which commit it used.
+- README: demo GIF recorded from a real demo project; pstack pairing guide.
+
 ## 0.1.0 - 2026-11-20
 
 First release.

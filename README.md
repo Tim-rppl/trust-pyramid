@@ -15,6 +15,10 @@ runtime verification in the real app, an evidence-based AI reviewer, and gates t
 
 **English** · [简体中文](README.zh-CN.md)
 
+<img src="docs/media/demo-en.gif" alt="Trust Pyramid demo: the agent calls the model API from the browser, the Stop hook blocks it with fix-it lint errors, the agent fixes the root cause, the smoke flow proves it in the running app, and an independent AI reviewer's findings are settled with red-to-green test evidence" width="100%">
+
+<sub>All terminal output and the app screenshot are real, captured from a demo project. The agent's edits are replayed by a script; the review findings come from a real, independent AI reviewer run.</sub>
+
 </div>
 
 ---

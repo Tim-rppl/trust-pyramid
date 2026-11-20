@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Deterministic gate over AI review findings.
 // Every finding needs a disposition in quality/review-dispositions.json:
-//   confirmed -> its test files must FAIL on the base commit (at an assertion, not at import) and
+//   confirmed -> its test files must FAIL on the reviewed commit (at an assertion, not at import) and
 //                PASS on the head commit (red -> green)
 //   rejected  -> not a real problem; needs a reason (>= 20 chars); shown to the human
 //   deferred  -> real but not fixed in this PR; needs a reason and the finding ID must be recorded
@@ -9,7 +9,10 @@
 // Usage:
 //   node scripts/review-gate.mjs [--review .ai-review/review.json] [--dispositions quality/review-dispositions.json]
 //                                [--config quality/review.config.json] [--base <ref>]
-// --base defaults to $REVIEW_BASE_REF, then origin/main, then main.
+// The "red" side is the commit the reviewer looked at: review.json's reviewed_sha
+// ({ "reviewed_sha": "...", "findings": [...] }). That covers bugs that already existed and bugs the
+// PR itself introduced. Precedence: --base, then reviewed_sha, then $REVIEW_BASE_REF, then origin/main,
+// then main. The chosen commit must exist, be an ancestor of HEAD, and differ from HEAD.
 //                                [--summary review-summary.md] [--no-evidence] [--list]
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -42,8 +45,12 @@ function parseArgs(argv) {
     else if (['--review', '--dispositions', '--config', '--base', '--summary'].includes(flag)) options[flag.slice(2)] = argv[++index];
     else throw new Error(`Unknown argument: ${flag}`);
   }
-  options.base ??= defaultBase();
   return options;
+}
+
+/** The commit the findings were made against, if the review recorded it. */
+export function reviewedSha(text) {
+  try { return JSON.parse(text).reviewed_sha ?? null; } catch { return null; }
 }
 
 /** Accepts a JSON array, {findings: [...]}, or text that contains one (e.g. a fenced model reply). */
@@ -93,11 +100,26 @@ export function checkDispositions(findings, dispositions, candidatesText = '') {
   return problems;
 }
 
+const git = (...args) => spawnSync('git', args, { encoding: 'utf8' });
+
+/** The red side must be a real commit in HEAD's history, and not HEAD itself. */
+export function validateBase(base) {
+  const resolved = git('rev-parse', '--verify', '--quiet', `${base}^{commit}`);
+  if (resolved.status !== 0) return `the reviewed commit "${base}" does not exist`;
+  const sha = resolved.stdout.trim();
+  if (sha === git('rev-parse', 'HEAD').stdout.trim()) return `the reviewed commit is HEAD itself; commit the fixes on top of the reviewed commit`;
+  if (git('merge-base', '--is-ancestor', sha, 'HEAD').status !== 0) return `the reviewed commit ${sha.slice(0, 12)} is not an ancestor of HEAD`;
+  return null;
+}
+
 function proveRedToGreen(findings, dispositions, options, config) {
   const confirmed = findings.map(finding => ({ finding, id: findingId(finding), disposition: dispositions[findingId(finding)] }))
     .filter(item => item.disposition?.status === 'confirmed');
   if (!confirmed.length) return [];
   const timeout = config.timeoutSeconds ?? 600;
+  const invalid = validateBase(options.base);
+  if (invalid) return [invalid];
+  console.log(`Red side: ${options.base} (from ${options.baseSource})`);
   const baseDir = mkdtempSync(join(tmpdir(), 'review-gate-base-'));
   const problems = [];
   const added = spawnSync('git', ['worktree', 'add', '--detach', baseDir, options.base], { encoding: 'utf8' });
@@ -114,7 +136,7 @@ function proveRedToGreen(findings, dispositions, options, config) {
         cpSync(file, join(baseDir, file));
       }
       const onBase = run(disposition.testCommand, baseDir, timeout);
-      if (onBase.code === 0) problems.push(`${id}: the test PASSES on base ${options.base}, so it does not demonstrate the problem`);
+      if (onBase.code === 0) problems.push(`${id}: the test PASSES on ${options.base} (the reviewed code), so it does not demonstrate the problem`);
       else if (WRONG_REASON.test(onBase.output)) problems.push(`${id}: the test fails on base for the wrong reason (it never reached its assertions). Test the behavior through an API that exists on base:\n${onBase.output.slice(-600)}`);
       const onHead = run(disposition.testCommand, process.cwd(), timeout);
       if (onHead.code !== 0) problems.push(`${id}: the test FAILS on head, so the fix is not proven:\n${onHead.output}`);
@@ -148,7 +170,11 @@ export function main(argv = process.argv.slice(2)) {
     console.error(`Review output not found at ${options.review}. The AI review job must run first (fails closed).`);
     return 1;
   }
-  const findings = extractFindings(readFileSync(options.review, 'utf8'));
+  const reviewText = readFileSync(options.review, 'utf8');
+  const findings = extractFindings(reviewText);
+  if (options.base) options.baseSource = '--base';
+  else if (reviewedSha(reviewText)) { options.base = reviewedSha(reviewText); options.baseSource = 'review.json reviewed_sha'; }
+  else { options.base = defaultBase(); options.baseSource = process.env.REVIEW_BASE_REF ? 'REVIEW_BASE_REF' : 'default branch'; }
   if (options.list) {
     for (const finding of findings) console.log(`${findingId(finding)}  ${finding.file}:${finding.line ?? '?'}  ${finding.summary}`);
     return 0;

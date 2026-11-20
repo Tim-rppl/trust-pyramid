@@ -96,3 +96,54 @@ test('gate fails closed when the review output is missing', () => {
   assert.equal(result.status, 1);
   assert.match(result.stderr, /fails closed/);
 });
+
+test('a bug introduced by the PR itself is proven against the reviewed commit, not main', () => {
+  const { dir, git } = tempRepo({ 'src/price.mjs': 'export const total = items => items.length;\n' });
+  copyTemplate('scripts/review-gate.mjs', dir);
+  git('add', '-A');
+  git('commit', '-q', '-m', 'base');
+  git('checkout', '-q', '-b', 'feature');
+  // The PR adds new code with a bug; the reviewer looks at this commit.
+  writeFiles(dir, { 'src/discount.mjs': 'export const discount = (price, percent) => price - percent;\n' });
+  git('add', '-A');
+  git('commit', '-q', '-m', 'add discount (buggy)');
+  const reviewed = git('rev-parse', 'HEAD').trim();
+  const bug = { file: 'src/discount.mjs', line: 1, summary: 'Discount subtracts the percent instead of a percentage' };
+  writeFiles(dir, {
+    'src/discount.mjs': 'export const discount = (price, percent) => price * (1 - percent / 100);\n',
+    'test/discount.test.mjs': "import assert from 'node:assert/strict';\nimport test from 'node:test';\nimport { discount } from '../src/discount.mjs';\ntest('10% off 200 is 180', () => { assert.equal(discount(200, 10), 180); });\n",
+    '.ai-review/review.json': JSON.stringify({ reviewed_sha: reviewed, findings: [bug] }),
+    'quality/review-dispositions.json': JSON.stringify({ findings: { [findingId(bug)]: {
+      status: 'confirmed', testFiles: ['test/discount.test.mjs'], testCommand: 'node --test test/discount.test.mjs' } } }),
+  });
+  git('add', '-A');
+  git('commit', '-q', '-m', 'fix discount');
+  const result = spawnSync('node', ['scripts/review-gate.mjs'], { cwd: dir, encoding: 'utf8', env: cleanEnv });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /Gate passed/);
+});
+
+test('the reviewed commit must be a real ancestor of HEAD, not HEAD itself', () => {
+  const { dir, git } = tempRepo({ 'src/a.mjs': 'export const a = 1;\n' });
+  copyTemplate('scripts/review-gate.mjs', dir);
+  const bug = { file: 'src/a.mjs', line: 1, summary: 'a should be two' };
+  const confirmed = { findings: { [findingId(bug)]: { status: 'confirmed', testFiles: ['test/a.test.mjs'], testCommand: 'node --test test/a.test.mjs' } } };
+  writeFiles(dir, {
+    'test/a.test.mjs': "import assert from 'node:assert/strict';\nimport test from 'node:test';\nimport { a } from '../src/a.mjs';\ntest('a', () => assert.equal(a, 1));\n",
+    'quality/review-dispositions.json': JSON.stringify(confirmed),
+  });
+  git('add', '-A');
+  git('commit', '-q', '-m', 'head');
+  const head = git('rev-parse', 'HEAD').trim();
+  const runWith = reviewed => {
+    writeFiles(dir, { '.ai-review/review.json': JSON.stringify({ reviewed_sha: reviewed, findings: [bug] }) });
+    return spawnSync('node', ['scripts/review-gate.mjs'], { cwd: dir, encoding: 'utf8', env: cleanEnv });
+  };
+  assert.match(runWith(head).stdout, /reviewed commit is HEAD itself/);
+  assert.match(runWith('0123456789abcdef0123456789abcdef01234567').stdout, /does not exist/);
+  git('checkout', '-q', '--orphan', 'other');
+  git('commit', '-q', '-m', 'unrelated', '--allow-empty');
+  const unrelated = git('rev-parse', 'HEAD').trim();
+  git('checkout', '-q', 'main');
+  assert.match(runWith(unrelated).stdout, /not an ancestor of HEAD/);
+});

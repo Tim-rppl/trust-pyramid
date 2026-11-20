@@ -71,13 +71,20 @@ in the PR comment.
 - a rejection or deferral has a reason shorter than 20 characters;
 - a deferred finding's ID does not appear in `quality/rule-candidates.md` (deferred means tracked,
   not forgotten; "rejected" is only for findings that are not real problems);
-- a confirmed finding's tests do not **fail** when copied onto the base commit, or do not **pass**
-  on the head commit (red → green proof);
+- a confirmed finding's tests do not **fail** when copied onto the reviewed commit, or do not
+  **pass** on the head commit (red → green proof);
 - the base run failed for the wrong reason - an import error, a missing symbol, a syntax error -
   instead of at an assertion. Write the evidence test against an API that already exists on base.
 
-The base ref defaults to `$REVIEW_BASE_REF`, then `origin/main`, then `main` (repos without a
-remote). Pass `--base <ref>` to override.
+The "red" side is the commit the reviewer looked at, stored as `reviewed_sha` in `review.json`
+(the CI job writes it). This matters: a bug the PR itself introduced does not exist on `main`, so a
+test copied onto `main` could only fail for the wrong reason. Without `reviewed_sha` the gate falls
+back to `$REVIEW_BASE_REF`, then `origin/main`, then `main`. Pass `--base <ref>` to override.
+Whatever the source, the red-side commit must exist, be an ancestor of HEAD, and not be HEAD itself
+(fixes go in new commits on top of the reviewed one); the gate prints which commit it used and why.
+
+Locally, record it yourself after a review:
+`{ "reviewed_sha": "<git rev-parse HEAD at review time>", "findings": [ ... ] }`.
 
 The review is cached by a hash of the code diff that excludes `quality/review-dispositions.json`,
 so committing dispositions does not trigger a new review; changing code does.

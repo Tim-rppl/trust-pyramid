@@ -49,7 +49,7 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v5
-        with: { fetch-depth: 0 }
+        with: { fetch-depth: 0, ref: "${{ github.event.pull_request.head.sha }}" }
       # Review once per code diff. Committing dispositions does not change this hash, so it does not re-trigger a review.
       - id: diff
         env:
@@ -87,6 +87,17 @@ jobs:
       #       Your final message must be only the JSON array.
       #     output-file: .ai-review/review.json
 
+      # Record which commit was reviewed: the review gate proves each confirmed finding red on this
+      # commit and green on the PR head, which also covers bugs the PR itself introduced.
+      - if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node --input-type=module -e "
+            import fs from 'node:fs';
+            import { extractFindings } from './scripts/review-gate.mjs';
+            const text = fs.readFileSync('.ai-review/review.json', 'utf8');
+            fs.writeFileSync('.ai-review/review.json', JSON.stringify({ reviewed_sha: process.env.HEAD_SHA, findings: extractFindings(text) }, null, 2));"
       - uses: actions/upload-artifact@v4
         with: { name: ai-review, path: .ai-review/review.json }
       - name: Post findings with IDs
@@ -115,6 +126,4 @@ jobs:
         with: { name: ai-review, path: .ai-review }
       # TODO(trust-pyramid): install dependencies so confirmed-finding tests can run on head
       - run: npm ci --prefix web && npm ci --prefix server
-      - env:
-          REVIEW_BASE_REF: ${{ github.event.pull_request.base.sha }}
-        run: node scripts/review-gate.mjs --summary "$GITHUB_STEP_SUMMARY"
+      - run: node scripts/review-gate.mjs --summary "$GITHUB_STEP_SUMMARY"
