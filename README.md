@@ -39,7 +39,9 @@ Trust Pyramid moves trust from people to the system:
 
 The approach follows Lauren Tan's talk
 [*All Code Is Slop (Except Mine)*](https://www.youtube.com/watch?v=O_zcc6Xl12g) (AI Engineer Code
-Summit 2026) and adds the enforced reviewer layer.
+Summit 2026) and adds the enforced reviewer layer. She also open-sourced her own skills as
+[pstack](https://github.com/cursor/plugins/tree/main/pstack); see
+[Pair it with pstack](#pair-it-with-pstack-recommended) for how the two differ and work together.
 
 ## How it works
 
@@ -108,6 +110,107 @@ In Codex you can also type `$trust-pyramid`.
 The agent interviews you briefly, writes a plan, **waits for your approval**, then builds the
 layers one by one. At the end it proves every check can fail, runs a demo loop on a small
 feature, and reports in plain language.
+
+## Pair it with pstack (recommended)
+
+Lauren Tan open-sourced her own skills as
+[**pstack**](https://github.com/cursor/plugins/tree/main/pstack) (MIT). It is a different tool that
+solves a different half of the problem, and the two work well together.
+
+| | pstack | Trust Pyramid |
+|---|---|---|
+| What it is | ~60 skills that shape **how the agent works**: `/poteto-mode` with 22 playbooks (bug fix, perf, refactor, feature, ...), engineering principles, and builders such as `/correct` and `/create-verification-skill` | One skill that **installs enforcement into your repo**: lint rules, verification tools, an enforced reviewer, and gates |
+| When it acts | While the agent writes code, whenever you invoke it | Every time the agent finishes, you commit, or a PR opens - automatically |
+| Ready to use | Immediately after install | After a one-time setup run (plan, approve, install) |
+| Can it be skipped | Yes - its skills run only when you call them | No - the gates run without asking the agent |
+| After you uninstall | Its effect is gone | The rules and gates stay in your repo |
+
+**Why both:** pstack makes the agent get it right the first time, so it rewrites less. Trust
+Pyramid guarantees that what it still gets wrong never reaches `main`. pstack also brings tools
+that Trust Pyramid only sketches: verification for CLIs, desktop and mobile apps, state charts,
+and formal verification. pstack is Lauren Tan's project; Trust Pyramid is independent and not
+affiliated with her or Cursor.
+
+### Install both
+
+Claude Code:
+
+```text
+/plugin marketplace add cursor/plugins
+/plugin install pstack@cursor-plugins
+/plugin marketplace add Tim-rppl/trust-pyramid
+/plugin install trust-pyramid@trust-pyramid
+```
+
+Then run `/pstack:setup-pstack` once to choose models and a reasoning budget.
+
+Codex (and other agents) - pstack through its official mirror and the `skills` CLI:
+
+```bash
+npx skills add backnotprop/pstack
+```
+
+Then install Trust Pyramid as in [Quick start](#codex).
+
+### Using both in the chat
+
+In Claude Code, pstack commands carry the plugin prefix (`/pstack:<skill>`). In Codex, mention a
+skill with `$<skill>` (for example `$poteto-mode`).
+
+**1. Once per project: set up the gates.**
+
+```text
+Use the trust-pyramid skill to set up quality gates for this project. <product, stack, languages>
+```
+
+**2. Every task: work with pstack, let the gates check.**
+
+```text
+/pstack:poteto-mode Add CSV export to the notes page. Verify it in the running app.
+```
+
+pstack drives the work; when the agent tries to finish, Trust Pyramid's Stop hook runs the checks
+and sends it back if anything fails.
+
+**3. The same mistake happens twice: make it impossible.**
+
+```text
+/pstack:correct The agent keeps calling the model API directly from route handlers.
+```
+
+`/correct` turns the mistake into architecture, a type, a lint rule, or a test, and proves it
+fails on the old code. The new rule then runs in every gate automatically.
+
+**4. Your app is not a web app (CLI, desktop, mobile): build its verifier.**
+
+```text
+/pstack:create-verification-skill
+```
+
+Use the generated skill wherever Trust Pyramid's workflow asks for runtime verification.
+
+**5. Before a pull request: let the reviewer find problems, and keep the good ones.**
+
+```text
+Run the quality reviewer on this branch. For each confirmed finding, use /pstack:correct to turn
+it into a rule, then record dispositions in quality/review-dispositions.json.
+```
+
+**6. Optional, for tricky state (recording sessions, subscriptions, retries):**
+
+```text
+/pstack:statechart the recording session
+/pstack:create-formal-verification-skill
+```
+
+| You want to... | Use |
+|---|---|
+| Do a task rigorously | `/pstack:poteto-mode` |
+| Stop a repeated mistake for good | `/pstack:correct` (or Trust Pyramid's add-rule flow) |
+| Prove behavior of a non-web app | `/pstack:create-verification-skill` |
+| Remove comments that excuse workarounds | `/pstack:no-comments` |
+| Make sure nothing bad merges | Trust Pyramid gates (automatic) |
+| Get problems found for you | Trust Pyramid reviewer (runs on every PR) |
 
 ## What you get
 
@@ -188,6 +291,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Run `npm ci && npm test` before opening 
 ## Credits
 
 - Lauren Tan, [*All Code Is Slop (Except Mine)*](https://ai.engineer/code/2026/talks/lauren-tan), AI Engineer Code Summit 2026.
+- Lauren Tan, [pstack](https://github.com/cursor/plugins/tree/main/pstack) (MIT) - the skills behind the talk.
 - OpenAI, [*Harness engineering*](https://openai.com/index/harness-engineering/).
 - Maddila et al., [*Agentic Program Repair from Test Failures at Scale*](https://arxiv.org/abs/2507.18755).
 
