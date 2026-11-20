@@ -1,10 +1,11 @@
 // check.sh, stop-gate.sh and pre-commit behave as documented in references/gates.md.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
-import { copyTemplate, tempRepo, writeFiles } from './helpers.mjs';
+import { TEMPLATES, copyTemplate, tempRepo, writeFiles } from './helpers.mjs';
 
 function repoWithChecks() {
   const { dir, git } = tempRepo({
@@ -139,4 +140,29 @@ test('gates still run when the scripts were committed without the executable bit
   const trusted = run(dir, 'bash scripts/trusted-check.sh HEAD');
   assert.doesNotMatch(trusted.stdout + trusted.stderr, /Permission denied/);
   assert.match(trusted.stdout, /✓ no new suppression comments/);
+});
+
+test('the Stop hook finds the repository from its own location, and fails loudly when it cannot', () => {
+  const { dir } = repoWithChecks();
+  const elsewhere = mkdtempSync(join(tmpdir(), 'trust-pyramid-cwd-'));
+  try {
+    // The registered command, run from a directory outside the repository (the agent changed directory).
+    const { command } = JSON.parse(readFileSync(join(TEMPLATES, 'claude/settings.json'), 'utf8')).hooks.Stop[0].hooks[0];
+    assert.equal(command, 'bash "$CLAUDE_PROJECT_DIR/scripts/stop-gate.sh"');
+    const hook = () => spawnSync('bash', ['-c', command], { cwd: elsewhere, encoding: 'utf8', input: '{}', env: { ...process.env, CLAUDE_PROJECT_DIR: dir } });
+    assert.deepEqual(JSON.parse(hook().stdout), {});
+    writeFiles(dir, { 'app/value.txt': 'broken\n' });
+    const blocked = hook();
+    assert.equal(blocked.status, 2, 'checks must run even though the hook started outside the repository');
+    assert.match(blocked.stderr, /not ok - value/);
+
+    // A copy of the script that is not inside any repository must not pass silently.
+    copyTemplate('scripts/stop-gate.sh', elsewhere);
+    const lost = spawnSync('bash', [join(elsewhere, 'scripts/stop-gate.sh')], { cwd: elsewhere, encoding: 'utf8', input: '{}', env: { ...process.env, GIT_CEILING_DIRECTORIES: dirname(elsewhere) } });
+    assert.equal(lost.status, 2);
+    assert.match(lost.stderr, /stop-gate: cannot find the repository/);
+    assert.equal(lost.stdout, '');
+  } finally {
+    rmSync(elsewhere, { recursive: true, force: true });
+  }
 });

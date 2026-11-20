@@ -78,6 +78,11 @@ when the package manager supports it.
 
 `templates/scripts/stop-gate.sh` → `scripts/stop-gate.sh` (one script for both agents). Behavior:
 
+- Finds the repository from its own location, not from the current directory (the agent may have
+  changed directory, or the host may start hooks elsewhere). If it cannot find it, it exits 2 with
+  `stop-gate: cannot find the repository` instead of letting the turn end unchecked. Register it as
+  `bash "$CLAUDE_PROJECT_DIR/scripts/stop-gate.sh"` so neither the executable bit nor the shebang
+  matters (Windows).
 - Runs `scripts/check.sh`. Pass: prints `{}` to stdout and exits 0 (Codex requires JSON on stdout
   when a Stop hook exits 0; Claude Code accepts it).
 - Fail: writes the failures to stderr and exits 2. Both agents treat this as "keep working" and

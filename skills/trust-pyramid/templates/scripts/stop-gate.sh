@@ -7,7 +7,10 @@
 # to the user", then let the turn end with a visible systemMessage. No loops, no silent hand-over.
 # A failure the agent cannot fix (a protected gate file) should be handed over at once, not retried.
 [ -t 0 ] || cat >/dev/null  # hook input JSON on stdin is not needed
-cd "$(git rev-parse --show-toplevel)" || { echo '{}'; exit 0; }
+# Find the repository from this script's location, not the current directory: the agent may have
+# changed directory, or the host may start hooks elsewhere. Never pass silently when it cannot be found.
+root=$(git -C "$(dirname "${BASH_SOURCE[0]}")/.." rev-parse --show-toplevel 2>/dev/null) && cd "$root" || {
+  echo "stop-gate: cannot find the repository from $0" >&2; exit 2; }
 
 state_dir=.quality-state
 counter=$state_dir/stop-gate-count
