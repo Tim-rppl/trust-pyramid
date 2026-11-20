@@ -66,7 +66,7 @@ The gates make sure every layer actually runs:
 |---|---|---|
 | Agent tries to finish | Stop hook (Claude Code and Codex, one script) | Hard, but an agent can edit local hook files - fast feedback, not the guarantee |
 | `git commit` | pre-commit hook | Only with `--no-verify` |
-| Pull request | CI: checks, smoke, AI review, review gate - using the **base branch's** gate files | **No** - with branch protection and code owners |
+| Pull request | CI: checks, smoke, AI review, review gate - using the **base branch's** gate files | **No** - with branch protection (advisory on private GitHub Free repos, which have none) |
 | Merge | Your approval, based on evidence | It is your call |
 
 ## What we measured

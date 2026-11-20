@@ -1,6 +1,8 @@
 # Trust Pyramid quality gates. Make `check`, `smoke` and `review-gate` required status checks
-# (Settings -> Branches -> branch protection for main) so nothing merges without them, and enable
-# "Require review from Code Owners" so changes to the gates themselves need a human.
+# (Settings -> Branches -> branch protection for main) so nothing merges without them. Teams also
+# enable "Require review from Code Owners"; a single maintainer cannot approve their own PR, so
+# skip approvals there. Private repositories on GitHub Free have no branch protection: these checks
+# are then advisory (see references/gates.md, "Branch protection").
 #
 # Every job runs the BASE branch's copy of the gate scripts and protected files
 # (scripts/trusted-check.sh): a PR that deletes a check or turns a rule off is still checked

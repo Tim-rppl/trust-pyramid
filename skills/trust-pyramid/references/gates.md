@@ -9,7 +9,7 @@ looks identical everywhere and "passes locally, fails in CI" does not happen.
 | 1 | while coding | agent runs typecheck/lint | fastest feedback | yes |
 | 2 | agent tries to finish its turn | Stop hook (Claude Code, Codex) | no "done" until checks pass | hard; config is local |
 | 3 | `git commit` | `.githooks/pre-commit` | also covers humans and other tools | `--no-verify` |
-| 4 | pull request | CI: check + smoke + AI review + review gate, **using the base branch's gate files** | runs on the server | **no**, with branch protection + code owners |
+| 4 | pull request | CI: check + smoke + AI review + review gate, **using the base branch's gate files** | runs on the server | **no**, with branch protection (+ code owners for teams); advisory where the plan has no branch protection |
 | 5 | merge | human approval | looks at evidence, not diffs | final say |
 
 ## The gates must not trust the code they check
@@ -129,10 +129,31 @@ not in '<base sha>'` (exit code 128), which reads like a broken setup. Tell the 
 
 ## Branch protection (the user must do this once)
 
-Settings → Branches → protect `main`: require a pull request, require status checks `check`,
-`smoke`, `review-gate`, require 1 approval, and do not allow bypassing. Or with the GitHub CLI
-(`gh api -X PUT repos/<owner>/<repo>/branches/main/protection ...`). Explain to the user in plain
-language that this is what makes the checks truly mandatory.
+Branch protection is what makes the checks mandatory. Check availability in Phase 0, not after
+building: on GitHub Free, private repositories get neither branch protection nor rulesets
+(`gh api repos/<owner>/<repo>/branches/main/protection` and `.../rulesets` return 403 "Upgrade to
+GitHub Pro or make this repository public to enable this feature"). Public repositories and paid
+plans have both.
+
+**Team (two or more people who can approve).** Settings → Branches (or Rules → Rulesets) → protect
+`main`: require a pull request, require the status checks you installed (`check`, and `smoke`,
+`review-gate` if installed), require 1 approval, require review from Code Owners, and do not allow
+bypassing. Or with the GitHub CLI (`gh api -X PUT repos/<owner>/<repo>/branches/main/protection ...`).
+
+**One maintainer.** GitHub does not let an author approve their own PR, so required approvals or
+code-owner review would block every merge. Require a pull request and the status checks, with no
+required approvals and no code-owner review. CODEOWNERS still marks gate files in the PR view, and
+trusted CI still checks every PR with the base branch's gate files.
+
+**No branch protection available (private repository on GitHub Free).** The PR checks still run but
+are advisory: nothing stops a merge while they are red. Tell the user plainly, and set up the
+fallback:
+- check the PR's checks before every merge (`gh pr checks <n> --watch`) and never merge on red;
+- make the deploy workflow run the same checks (`scripts/check.sh --all` and the tests) before it
+  deploys, so a red change never reaches users - that is the hard stop;
+- revisit when the repository becomes public or the plan changes.
+
+Explain to the user in plain language which of these applies and what it means.
 
 ## PR template
 

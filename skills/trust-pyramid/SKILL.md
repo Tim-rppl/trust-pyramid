@@ -67,6 +67,12 @@ UI languages, deployment target, areas involving money/permissions/privacy, exte
 (AI models, payments), the user's coding level, new vs existing project.
 Detect the host agent: Claude Code (`.claude/`, `CLAUDE.md`) or Codex (`.codex/`, `AGENTS.md`).
 If unsure, install gates for both. Propose a profile (lite unless the full criteria apply).
+Check what the hosting plan allows **before** building, and tell the user the result: branch
+protection and rulesets are not available for private repositories on GitHub Free
+(`gh repo view --json visibility`, then `gh api repos/<owner>/<repo>/branches/<default>/protection`;
+a 403 "Upgrade to GitHub Pro or make this repository public" means not available). Ask whether the
+project has one maintainer or a team. Both answers change the merge gate (`references/gates.md`,
+"Branch protection").
 
 ### Phase 1 - Plan (then stop for approval)
 
