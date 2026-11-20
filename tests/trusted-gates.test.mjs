@@ -35,7 +35,7 @@ function attack(edits) {
   const run = command => spawnSync('bash', ['-c', command], { cwd: dir, encoding: 'utf8' });
   return {
     naive: run('scripts/check.sh --all'),
-    trusted: run('git show base:scripts/trusted-check.sh > "$TMPDIR/tc-$$.sh" && bash "$TMPDIR/tc-$$.sh" base'),
+    trusted: run('git show base:scripts/trusted-check.sh > "${TMPDIR:-/tmp}/tc-$$.sh" && bash "${TMPDIR:-/tmp}/tc-$$.sh" base'),
   };
 }
 
@@ -75,7 +75,7 @@ test('a clean PR passes, and a PR that changes gate files is flagged but not fai
   writeFiles(dir, { 'src/app.js': 'export const ok = 2;\n', 'lint.conf': 'enabled\n# stricter soon\n' });
   git('add', '-A');
   git('commit', '-q', '-m', 'pr');
-  const result = spawnSync('bash', ['-c', 'git show base:scripts/trusted-check.sh > "$TMPDIR/tc-$$.sh" && bash "$TMPDIR/tc-$$.sh" base'], { cwd: dir, encoding: 'utf8' });
+  const result = spawnSync('bash', ['-c', 'git show base:scripts/trusted-check.sh > "${TMPDIR:-/tmp}/tc-$$.sh" && bash "${TMPDIR:-/tmp}/tc-$$.sh" base'], { cwd: dir, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /changes protected quality files/);
 });
