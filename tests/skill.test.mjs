@@ -73,3 +73,11 @@ test('line endings: this repo and installed projects keep gate files LF on Windo
   const installed = ['scripts/check.sh', 'scripts/review-gate.mjs', '.githooks/pre-commit', 'lint/project-plugin.mjs', 'quality/protected-paths.txt', '.github/workflows/quality.yml', '.claude/settings.json', '.codex/hooks.json', 'tools/build.sh'];
   for (const line of eol(dir, installed).trim().split('\n')) assert.match(line, /: eol: lf$/, `installed project: ${line}`);
 });
+
+test('tests and templates never spawn npx or python3 by name (both break on Windows)', () => {
+  const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', '*.mjs', '*.js'], { cwd: ROOT, encoding: 'utf8' }).trim().split('\n');
+  for (const file of files) {
+    const text = readFileSync(join(ROOT, file), 'utf8');
+    assert.doesNotMatch(text, /spawn(Sync)?\(\s*['"](npx|python3)['"]/, `${file} spawns npx/python3 directly`);
+  }
+});

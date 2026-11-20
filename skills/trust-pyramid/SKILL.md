@@ -146,7 +146,7 @@ Commit to a new branch. Never push or deploy unless the user asks.
 | `templates/claude/settings.json` | `.claude/settings.json` (merge if it exists) |
 | `templates/codex/hooks.json` | `.codex/hooks.json` |
 | `templates/githooks/pre-commit` | `.githooks/pre-commit` + `git config core.hooksPath .githooks` |
-| `templates/lint/` | `lint/` (oxlint/ESLint plugin, fixtures, fixture test) |
+| `templates/lint/` | `lint/` (oxlint/ESLint plugin, fixtures, fixture test, `oxlint.mjs` cross-platform runner) |
 | `templates/lint/python/` | `lint/` for Python projects (AST rule checker + fixtures) |
 | `templates/verify/` | `verify/` (CLI, config, smoke, feature map, fake model server) |
 | `templates/quality/` | `quality/` (reviewer prompt, review config, dispositions, ledgers) |

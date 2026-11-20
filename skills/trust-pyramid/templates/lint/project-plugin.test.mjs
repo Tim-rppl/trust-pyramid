@@ -1,14 +1,12 @@
 // Proves each project rule fires on the violating fixture and stays silent on the compliant one.
 // Uses a fixture-only config so the main lint config can keep ignoring lint/fixtures/.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
-
-const root = fileURLToPath(new URL('..', import.meta.url));
+import { runOxlint } from './oxlint.mjs';
 
 function lint(file) {
-  const result = spawnSync('npx', ['oxlint', '-c', 'lint/fixtures/oxlintrc.json', '--format', 'json', file], { cwd: root, encoding: 'utf8' });
+  const result = runOxlint(['-c', 'lint/fixtures/oxlintrc.json', '--format', 'json', file]);
+  assert.ok(result.stdout, `oxlint printed nothing: ${result.stderr || result.error?.message}`);
   return JSON.parse(result.stdout).diagnostics.map(d => `${d.code}@${d.labels[0].span.line}`).sort();
 }
 
