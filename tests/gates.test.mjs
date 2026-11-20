@@ -168,6 +168,22 @@ test('hook-status flags disableAllHooks and shows when the Stop hook last ran', 
   assert.ok(dir);
 });
 
+test('a user who never ran the installer is still reminded: AGENTS.md and the npm prepare script', () => {
+  const agents = readFileSync(join(TEMPLATES, 'AGENTS.md'), 'utf8');
+  assert.match(agents.split('\n').slice(0, 4).join('\n'), /run `bash scripts\/hook-status\.sh`.*install-agent-hooks\.sh/s, 'first rule in AGENTS.md');
+  const gates = readFileSync(join(TEMPLATES, '..', 'references', 'gates.md'), 'utf8');
+  const prepare = gates.match(/"prepare": "([^"]+)"/)[1];
+  const { dir, sh } = repoWithStagedHooks();
+  writeFiles(dir, { 'package.json': JSON.stringify({ name: 'x', private: true, scripts: { prepare } }) });
+  const install = sh('npm install --no-audit --no-fund');
+  assert.equal(install.status, 0, install.stderr);
+  assert.equal(sh('git config core.hooksPath').stdout.trim(), '.githooks', 'npm install enables pre-commit');
+  const outside = tempDir();
+  writeFiles(outside, { 'package.json': JSON.stringify({ name: 'y', private: true, scripts: { prepare } }) });
+  const noGit = spawnSync('npm', ['install', '--no-audit', '--no-fund'], { cwd: outside, encoding: 'utf8', shell: process.platform === 'win32', env: { ...process.env, GIT_CEILING_DIRECTORIES: dirname(outside) } });
+  assert.equal(noGit.status, 0, 'an install outside a git checkout still succeeds');
+});
+
 test('pre-commit reminds on every commit while the Stop hook is off, without blocking', () => {
   const { dir, git, sh } = repoWithStagedHooks();
   git('config', 'core.hooksPath', '.githooks');

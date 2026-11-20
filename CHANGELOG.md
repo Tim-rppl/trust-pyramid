@@ -18,7 +18,10 @@ Fixes from installing the skill on a real project on Windows 11 (issues #1-#15).
   existing `.claude/settings.json`, `.claude/settings.local.json` and `.codex/hooks.json` (it used
   to skip any file that existed, so the hook stayed off) and enables pre-commit.
   `scripts/hook-status.sh` reports what is on and when the Stop hook last ran; setup does not pass
-  Phase 5 until it is clean; pre-commit reminds on every commit while the hook is off.
+  Phase 5 until it is clean; pre-commit reminds on every commit while the hook is off. For a user
+  who never ran the installer: `AGENTS.md` tells the agent to run `hook-status.sh` at the start of
+  each session and explain how to enable the gates, and JS projects get a `prepare` script so
+  `npm install` enables pre-commit.
 - **Setup:** branch protection availability and team size are checked in Phase 0 (GitHub Free
   private repos, solo maintainers); CI is split per layer (`quality.yml`, `quality-smoke.yml`,
   `quality-review.yml`); the deny list is per machine and rules are written in a separate worktree;

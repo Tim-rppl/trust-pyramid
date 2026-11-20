@@ -82,8 +82,15 @@ prefixes, a label, a command). Behavior:
 (`scripts/install-agent-hooks.sh` asks and does it). On every commit it also runs
 `scripts/hook-status.sh --quiet` and prints a reminder while the agent Stop hook is not enabled; the
 reminder never blocks the commit.
-Document the one-time `git config` in the README; add a `prepare`/`postinstall` script that sets it
-when the package manager supports it.
+Document the one-time `git config` in the README. In a project with a root `package.json`, add
+`"prepare": "git config core.hooksPath .githooks || exit 0"` to its `scripts` (merge with an existing
+`prepare` using `&&`), so `npm install` enables pre-commit in every clone, including teammates'.
+`|| exit 0` works in both sh and Windows cmd and keeps installs outside a git checkout working.
+
+Reminders that need no hook at all: the root `AGENTS.md` tells the agent to run
+`scripts/hook-status.sh` at the start of each session and, if it fails, tell the user how to enable
+the gates. This is prose (an agent can skip it), but it reaches a user who never ran the installer,
+which a reminder inside a hook cannot.
 
 ## Stop hook (one script, both agents)
 

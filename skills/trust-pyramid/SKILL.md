@@ -120,7 +120,9 @@ user uses Codex), install `scripts/install-agent-hooks.sh` and `scripts/hook-sta
 user to run `bash scripts/install-agent-hooks.sh` in a terminal. It shows each change, asks, merges
 into existing config files (nothing is overwritten), and enables pre-commit. Then run
 `bash scripts/hook-status.sh` yourself: **do not continue past Phase 5 until it reports every gate
-enabled**, unless the user explicitly declines (record that in `docs/QUALITY.md`). Tell the user to
+enabled**, unless the user explicitly declines (record that in `docs/QUALITY.md`). In a project
+with a root `package.json`, add the `prepare` script from `references/gates.md` so `npm install`
+enables pre-commit in every clone. Tell the user to
 start a new agent session afterwards: hooks are read when a session starts. Stage the `permissions.deny` list for protected paths **last**, after every
 other edit: once it is in place the agent can no longer edit gate files (by design), so earlier
 installation locks it out.
