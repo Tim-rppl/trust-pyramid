@@ -92,6 +92,26 @@ Claude Code users who prefer not to use plugins can copy the same folder to `~/.
 At the end of setup the agent shows that every check can fail, runs one feature through the whole
 loop, and reports the results in plain language.
 
+## What to expect
+
+Setup gives you a skeleton, not a finished rule set. The agent can add rules for common problems in
+your stack, but those are worth little: a strong model rarely makes generic mistakes, which matches
+our [benchmark](docs/BENCHMARK.md). The rules that matter come from mistakes specific to your
+project, and those only show up while you build.
+
+The rule set grows with use:
+
+1. A gate or the reviewer catches a problem, or you correct the agent.
+2. The agent fixes it and turns the correction into a lint rule or a test.
+3. From then on every gate checks for it, for every agent and every person.
+
+The agent does each step. Your part is to say when something is wrong and to approve changes to the
+rules, which go through a pull request because gate files are protected.
+
+Expect to step in often in the first weeks, and less as the rules accumulate. Lauren Tan said it took
+her six months of this work before she could ship thousands of pull requests, many of them while
+she slept; in the month before the talk she shipped 3,000.
+
 ## How it works
 
 ```mermaid
