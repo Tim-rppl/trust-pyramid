@@ -1,0 +1,41 @@
+# Optional rule pack (templates/github-text/): PR title, PR description and commit messages follow
+# scripts/check-github-text.mjs (the project's language; no AI tool or vendor markers in the PR
+# description). Runs the BASE branch's copy of the rule; the PR that first adds it falls back to its
+# own copy ("Gate bootstrap"). "edited" re-runs it when the title or description changes.
+# Required status check: github-text.
+name: github-text
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  github-text:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v5
+        with: { node-version: 22 }
+      - name: PR title, description and commit messages (base branch's rules)
+        env:
+          # PR text is untrusted: pass it through the environment, never into the script itself.
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          rule="$RUNNER_TEMP/check-github-text.mjs"
+          if git cat-file -e "$BASE_SHA:scripts/check-github-text.mjs" 2>/dev/null; then
+            git show "$BASE_SHA:scripts/check-github-text.mjs" > "$rule"
+          else
+            echo "::warning title=Gate bootstrap::The base branch has no scripts/check-github-text.mjs yet (this PR adds it); using this PR's copy."
+            cp scripts/check-github-text.mjs "$rule"
+          fi
+          status=0
+          node "$rule" --pr || status=1
+          node "$rule" --commits "$BASE_SHA" "$HEAD_SHA" || status=1
+          exit $status

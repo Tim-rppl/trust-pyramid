@@ -206,6 +206,27 @@ logged. The local log is per machine and gitignored; CI's record is the job summ
 rule, rules that fired in more than one week, and (with `--rules`) rules that never fired. This
 answers the question users ask after setup: do the gates pay for themselves?
 
+## Optional rule pack: text that lands on GitHub
+
+Some teams want every PR title, PR description and commit message in one language, and PR
+descriptions free of AI tool or vendor markers ("Generated with ...", "Co-Authored-By: ...", the
+robot emoji). Offer it in Phase 0; install only on request:
+
+| Template | Install as |
+|---|---|
+| `templates/github-text/check-github-text.mjs` | `scripts/check-github-text.mjs` (edit `CONFIG` at the top) |
+| `templates/github-text/commit-msg` | `.githooks/commit-msg` (`git update-index --chmod=+x`) |
+| `templates/github-text/github-text.yml` | `.github/workflows/github-text.yml`; make `github-text` a required check |
+
+- `CONFIG.language`: the language's name and the Unicode scripts its letters may use
+  (`['Latin']` for English). The check works by writing system, so it catches Chinese, Japanese,
+  Cyrillic and similar, not another Latin-script language. `null` switches it off.
+- `CONFIG.markersIn` (default: PR descriptions only) and `CONFIG.markers` (the names and phrases
+  to reject). Code spans and fenced blocks are skipped, so `CLAUDE.md` in backticks or a quoted UI
+  string stays allowed.
+- The workflow runs the base branch's copy (bootstrap fallback on the PR that adds it), passes PR
+  text through the environment only, and re-runs when the title or description is edited.
+
 ## PR template
 
 `templates/github/pull_request_template.md`: plain-language summary, smoke result, screenshots,

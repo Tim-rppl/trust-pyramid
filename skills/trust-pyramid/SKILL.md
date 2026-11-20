@@ -192,6 +192,7 @@ Commit to a new branch. Never push or deploy unless the user asks.
 | `templates/github/CODEOWNERS` | `.github/CODEOWNERS` (replace `@OWNER`) |
 | `templates/claude/agents/quality-reviewer.md` | `.claude/agents/quality-reviewer.md` |
 | `templates/github/` | `.github/` (PR template, and one workflow per installed layer: `templates/github/workflows/quality.yml` always, `templates/github/workflows/quality-smoke.yml` with `verify/`, `templates/github/workflows/quality-review.yml` with the reviewer and its API key) |
+| `templates/github-text/` (optional) | `scripts/check-github-text.mjs`, `.githooks/commit-msg`, `.github/workflows/github-text.yml`: PR text and commit messages in the project's language, no AI tool markers in PR descriptions (`references/gates.md`) |
 | `templates/AGENTS.md` | `AGENTS.md` (+ `CLAUDE.md` containing `@AGENTS.md`) |
 | `templates/gitignore-additions.txt` | append to `.gitignore` |
 | `templates/gitattributes` | append to `.gitattributes` (LF line endings for gate files on Windows) |
