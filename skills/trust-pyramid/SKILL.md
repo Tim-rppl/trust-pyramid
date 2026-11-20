@@ -29,7 +29,8 @@ and adds an AI reviewer layer for the early phase when there are few rules and t
 6. **Ratchet.** Lock in what is already clean; rules with many existing violations start on new code
    only and are tracked until the backlog is cleared.
 7. **The checker is never the checked.** Anything that must not be skipped runs outside the agent's
-   control: hooks, CI, branch protection.
+   control, and must not trust files the agent can edit: CI runs the base branch's gate files
+   (`scripts/trusted-check.sh`), new suppression comments fail, and humans own the gate files.
 8. **Fix the inner loop before automating the outer loop.**
 
 ## Workflow
@@ -115,6 +116,9 @@ Commit to a new branch. Never push or deploy unless the user asks.
 | `templates/verify/` | `verify/` (CLI, config, smoke, feature map, fake model server) |
 | `templates/quality/` | `quality/` (reviewer prompt, review config, dispositions, ledgers) |
 | `templates/scripts/review-gate.mjs` | `scripts/review-gate.mjs` |
+| `templates/scripts/trusted-check.sh`, `templates/scripts/no-suppressions.sh` | `scripts/` (CI uses the base branch's copies) |
+| `templates/quality/protected-paths.txt`, `templates/quality/allowed-suppressions.txt` | `quality/` (edit the list for the project) |
+| `templates/github/CODEOWNERS` | `.github/CODEOWNERS` (replace `@OWNER`) |
 | `templates/claude/agents/quality-reviewer.md` | `.claude/agents/quality-reviewer.md` |
 | `templates/github/` | `.github/` (workflow, PR template) |
 | `templates/AGENTS.md` | `AGENTS.md` (+ `CLAUDE.md` containing `@AGENTS.md`) |

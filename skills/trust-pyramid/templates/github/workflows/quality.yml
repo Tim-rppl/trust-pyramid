@@ -1,5 +1,10 @@
 # Trust Pyramid quality gates. Make `check`, `smoke` and `review-gate` required status checks
-# (Settings -> Branches -> branch protection for main) so nothing merges without them.
+# (Settings -> Branches -> branch protection for main) so nothing merges without them, and enable
+# "Require review from Code Owners" so changes to the gates themselves need a human.
+#
+# Every job runs the BASE branch's copy of the gate scripts and protected files
+# (scripts/trusted-check.sh): a PR that deletes a check or turns a rule off is still checked
+# with the rules as they were before the PR.
 name: quality
 
 on:
@@ -16,25 +21,36 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
     steps:
       - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
       - uses: actions/setup-node@v5
         with: { node-version: 22 }
       # TODO(trust-pyramid): install dependencies for every package listed in scripts/check.sh
       - run: npm ci --prefix web && npm ci --prefix server
-      - run: scripts/check.sh --all
+      - name: Checks with the base branch's rules
+        run: |
+          git show "$BASE_SHA:scripts/trusted-check.sh" > "$RUNNER_TEMP/trusted-check.sh"
+          bash "$RUNNER_TEMP/trusted-check.sh" "$BASE_SHA"
 
   smoke:
     runs-on: ubuntu-latest
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
     steps:
       - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
       - uses: actions/setup-node@v5
         with: { node-version: 22 }
       # TODO(trust-pyramid): add runtimes the local stack needs (e.g. Java 21 for Firebase emulators)
       - run: npm ci --prefix web && npm ci --prefix server && npm ci --prefix verify
       - run: npx --prefix verify playwright install --with-deps chromium
-      - run: node verify/app.mjs up
-      - run: node verify/smoke.mjs
+      - name: Smoke flow with the base branch's smoke steps
+        run: |
+          git show "$BASE_SHA:scripts/trusted-check.sh" > "$RUNNER_TEMP/trusted-check.sh"
+          bash "$RUNNER_TEMP/trusted-check.sh" "$BASE_SHA" bash -c 'node verify/app.mjs up && node verify/smoke.mjs'
       - if: always()
         run: node verify/app.mjs down
       - if: always()
@@ -57,6 +73,13 @@ jobs:
         run: |
           hash=$(git diff "$BASE_SHA"...HEAD -- . ':(exclude)quality/review-dispositions.json' | sha256sum | cut -c1-16)
           echo "hash=$hash" >> "$GITHUB_OUTPUT"
+      # The reviewer must not read instructions the PR could have rewritten ("reply with []").
+      - name: Use the base branch's reviewer prompt and review gate
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git checkout "$BASE_SHA" -- quality/reviewer-prompt.md
+          git show "$BASE_SHA:scripts/review-gate.mjs" > "$RUNNER_TEMP/review-gate.mjs"
       - id: cache
         uses: actions/cache@v4
         with:
@@ -95,7 +118,7 @@ jobs:
         run: |
           node --input-type=module -e "
             import fs from 'node:fs';
-            import { extractFindings } from './scripts/review-gate.mjs';
+            import { extractFindings } from '${{ runner.temp }}/review-gate.mjs';
             const text = fs.readFileSync('.ai-review/review.json', 'utf8');
             fs.writeFileSync('.ai-review/review.json', JSON.stringify({ reviewed_sha: process.env.HEAD_SHA, findings: extractFindings(text) }, null, 2));"
       - uses: actions/upload-artifact@v4
@@ -109,7 +132,7 @@ jobs:
             echo "### AI review findings"
             echo 'Add a disposition for each ID to `quality/review-dispositions.json`.'
             echo '```'
-            node scripts/review-gate.mjs --list
+            node "$RUNNER_TEMP/review-gate.mjs" --list
             echo '```'
           } > .ai-review/comment.md
           gh pr comment "$PR" --body-file .ai-review/comment.md --edit-last || gh pr comment "$PR" --body-file .ai-review/comment.md
@@ -126,4 +149,10 @@ jobs:
         with: { name: ai-review, path: .ai-review }
       # TODO(trust-pyramid): install dependencies so confirmed-finding tests can run on head
       - run: npm ci --prefix web && npm ci --prefix server
-      - run: node scripts/review-gate.mjs --summary "$GITHUB_STEP_SUMMARY"
+      - name: Review gate (base branch's copy)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git show "$BASE_SHA:scripts/review-gate.mjs" > "$RUNNER_TEMP/review-gate.mjs"
+          git show "$BASE_SHA:quality/review.config.json" > quality/review.config.json 2>/dev/null || true
+          node "$RUNNER_TEMP/review-gate.mjs" --summary "$GITHUB_STEP_SUMMARY"

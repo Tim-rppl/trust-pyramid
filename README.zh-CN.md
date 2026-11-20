@@ -61,9 +61,9 @@ flowchart TB
 
 | 时机 | 关卡 | agent 能跳过吗？ |
 |---|---|---|
-| agent 想结束任务 | Stop hook（Claude Code 和 Codex 共用一个脚本） | 很难，会被要求继续修 |
+| agent 想结束任务 | Stop hook（Claude Code 和 Codex 共用一个脚本） | 很难，但 agent 能改本地 hook 文件，所以它负责快速反馈，不是最终保证 |
 | `git commit` | pre-commit hook | 只能用 `--no-verify` 绕过 |
-| 开 PR | CI：检查、冒烟、AI 审核、审核关卡 | **不能**，配合分支保护 |
+| 开 PR | CI：检查、冒烟、AI 审核、审核关卡，**使用主分支上的关卡文件** | **不能**，配合分支保护和代码负责人审批 |
 | 合并 | 你根据证据批准 | 由你决定 |
 
 ## 快速开始

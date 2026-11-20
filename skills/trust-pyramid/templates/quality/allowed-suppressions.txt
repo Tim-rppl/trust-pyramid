@@ -1,0 +1,2 @@
+# Exact suppression lines that are allowed, one per line, each with a reason in a comment above it.
+# This file is protected: a code owner must approve every change.

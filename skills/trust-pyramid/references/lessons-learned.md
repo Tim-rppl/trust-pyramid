@@ -47,3 +47,7 @@ Each item cost real time during a reference rollout on a production TypeScript/R
     fail at import. Record `reviewed_sha` with every review.
 21. **Review the gate too.** The independent reviewer flagged that an unvalidated `reviewed_sha`
     let anyone pick the "red" commit. The gate now checks it is a real ancestor of HEAD.
+22. **The gates trusted the code they check.** In an attack test, 4 of 6 bypasses (rule turned off
+    in config, check deleted from `check.sh`, folder added to the lint ignore list, and a
+    `lint-disable` comment) passed every gate including naive CI. Trusted CI (base branch's gate
+    files) plus a no-new-suppressions check blocked all of them with no false positives.

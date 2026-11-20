@@ -9,8 +9,30 @@ looks identical everywhere and "passes locally, fails in CI" does not happen.
 | 1 | while coding | agent runs typecheck/lint | fastest feedback | yes |
 | 2 | agent tries to finish its turn | Stop hook (Claude Code, Codex) | no "done" until checks pass | hard; config is local |
 | 3 | `git commit` | `.githooks/pre-commit` | also covers humans and other tools | `--no-verify` |
-| 4 | pull request | CI: check + smoke + AI review + review gate | runs on the server | **no**, with branch protection |
+| 4 | pull request | CI: check + smoke + AI review + review gate, **using the base branch's gate files** | runs on the server | **no**, with branch protection + code owners |
 | 5 | merge | human approval | looks at evidence, not diffs | final say |
+
+## The gates must not trust the code they check
+
+A PR is written by the agent being checked, and the gate definitions live in the same repo. In a
+field test, an agent's PR could pass naive CI by turning the rule off in the lint config, deleting
+the check from `scripts/check.sh`, or adding the source folder to the linter's ignore list; local
+hooks fall to the same tricks. Three defenses, all installed by this skill:
+
+1. **Trusted CI** - `scripts/trusted-check.sh <base>` restores every path in
+   `quality/protected-paths.txt` (read from the base commit) before running the checks, and CI runs
+   the base commit's copy of that script and of `review-gate.mjs`. Loosening a rule never applies
+   to the PR that loosens it; stricter rules apply after they merge.
+2. **No new suppressions** - `scripts/no-suppressions.sh` fails when a change adds
+   `eslint-disable`, `@ts-ignore`, `# noqa`, `# type: ignore` and similar. Exceptions go into
+   `quality/allowed-suppressions.txt`, which is protected.
+3. **Humans own the gate files** - `.github/CODEOWNERS` lists the protected paths; enable "Require
+   review from Code Owners". Claude Code's `permissions.deny` in `.claude/settings.json` blocks the
+   agent's edit tools on those paths (friction only: shell commands can still change files, which is
+   why 1 and 2 exist).
+
+Local gates (Stop hook, pre-commit) are for fast feedback and can be defeated by an agent that
+edits them; only trusted CI with branch protection is unskippable. Say this plainly to the user.
 
 ## scripts/check.sh
 

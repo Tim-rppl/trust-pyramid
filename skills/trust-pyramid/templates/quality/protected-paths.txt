@@ -1,0 +1,19 @@
+# Files that define the quality gates. CI always uses the BASE branch's version of these
+# (scripts/trusted-check.sh), and .github/CODEOWNERS requires a human to approve changes to them.
+# Add the project's lint configs, test configs and anything else that decides pass/fail.
+scripts/
+lint/
+.githooks/
+.github/
+quality/protected-paths.txt
+quality/allowed-suppressions.txt
+quality/reviewer-prompt.md
+quality/review.config.json
+verify/smoke.mjs
+verify/verify.config.mjs
+.oxlintrc.json
+eslint.config.js
+tsconfig.json
+pyproject.toml
+.claude/settings.json
+.codex/hooks.json

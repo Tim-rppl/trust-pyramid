@@ -1,0 +1,18 @@
+# Changes to the quality gates need a human. Replace @OWNER with your GitHub username or team,
+# and enable "Require review from Code Owners" in branch protection.
+/scripts/                         @OWNER
+/lint/                            @OWNER
+/.githooks/                       @OWNER
+/.github/                         @OWNER
+/quality/protected-paths.txt      @OWNER
+/quality/allowed-suppressions.txt @OWNER
+/quality/reviewer-prompt.md       @OWNER
+/quality/review.config.json       @OWNER
+/verify/smoke.mjs                 @OWNER
+/verify/verify.config.mjs         @OWNER
+/.oxlintrc.json                   @OWNER
+/eslint.config.js                 @OWNER
+/tsconfig.json                    @OWNER
+/pyproject.toml                   @OWNER
+/.claude/settings.json            @OWNER
+/.codex/hooks.json                @OWNER

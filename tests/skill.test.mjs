@@ -47,3 +47,13 @@ test('shell templates are executable', () => {
     assert.ok(statSync(join(SKILL, path)).mode & 0o111, `${path} must be executable`);
   }
 });
+
+test('CI never executes gate files from the PR checkout', () => {
+  const workflow = readFileSync(join(SKILL, 'templates/github/workflows/quality.yml'), 'utf8');
+  const runLines = workflow.split('\n').filter(line => !line.trim().startsWith('#'));
+  const body = runLines.join('\n');
+  assert.doesNotMatch(body, /^\s*(- run: )?(bash )?scripts\/(check|trusted-check)\.sh/m, 'check.sh must run through the base copy of trusted-check.sh');
+  assert.doesNotMatch(body, /node scripts\/review-gate\.mjs|from '\.\/scripts\/review-gate\.mjs'/, 'review-gate must be the base copy');
+  assert.match(body, /git checkout "\$BASE_SHA" -- quality\/reviewer-prompt\.md/, 'the reviewer prompt must come from base');
+  assert.equal((body.match(/git show "\$BASE_SHA:scripts\/trusted-check\.sh"/g) ?? []).length, 2, 'check and smoke both use trusted-check');
+});
