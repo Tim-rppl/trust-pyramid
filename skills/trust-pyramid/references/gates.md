@@ -22,7 +22,10 @@ hooks fall to the same tricks. Three defenses, all installed by this skill:
 1. **Trusted CI** - `scripts/trusted-check.sh <base>` restores every path in
    `quality/protected-paths.txt` (read from the base commit) before running the checks, and CI runs
    the base commit's copy of that script and of `review-gate.mjs`. Loosening a rule never applies
-   to the PR that loosens it; stricter rules apply after they merge.
+   to the PR that loosens it; stricter rules apply after they merge. `package.json` cannot be
+   protected as a whole (it carries dependency changes), so trusted-check restores only its
+   `"scripts"` from the base: a PR that changes `"lint": "tsc --noEmit"` to `"lint": "true"` is
+   still checked with the old script.
 2. **No new suppressions** - `scripts/no-suppressions.sh` fails when a change adds
    `eslint-disable`, `@ts-ignore`, `# noqa`, `# type: ignore` and similar. Exceptions go into
    `quality/allowed-suppressions.txt`, which is protected.
@@ -68,6 +71,10 @@ prefixes, a label, a command). Behavior:
   jest/vitest/go output; long lines are cut (assertion dumps of whole files hide the real error).
   For other runners, pick a reporter that prints a failure summary and extend `summarize()`.
 - Exit code is the only contract.
+- Prefer calling tools directly (`node_modules/.bin/tsc -p web --noEmit`, `node lint/oxlint.mjs ...`,
+  the test runner with explicit files) over `npm run <script>`: what a direct command does is defined
+  in `scripts/check.sh`, which is protected. When a check does go through an npm script,
+  trusted-check uses the base branch's `"scripts"` for every `package.json` the base has.
 
 ## Pre-commit
 

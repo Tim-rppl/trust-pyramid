@@ -156,3 +156,28 @@ test('after the gates merge, the same workflow step uses the base copy (no boots
   assert.doesNotMatch(result.stdout, /Gate bootstrap/);
   assert.match(result.stdout, /NOT used for this run[\s\S]*lint\.conf/);
 });
+
+test('loosening an npm script that check.sh calls fools naive CI but not trusted CI; dependency changes still apply', () => {
+  const { dir, git } = project();
+  writeFiles(dir, { 'app/package.json': JSON.stringify({ name: 'app', private: true, scripts: { lint: 'cd .. && bash lint.sh' } }, null, 2) + '\n' });
+  const check = join(dir, 'scripts/check.sh');
+  writeFileSync(check, readFileSync(check, 'utf8').replace('"src/ lint.sh lint.conf|lint|bash lint.sh"', '"src/ lint.sh lint.conf app/|lint|cd app && npm run --silent lint"'));
+  git('add', '-A');
+  git('commit', '-q', '-m', 'lint through an npm script');
+  git('branch', '-f', 'base');
+
+  writeFiles(dir, {
+    'src/app.js': 'export const ok = 1;\nexport const bad = "FORBIDDEN";\n',
+    'app/package.json': JSON.stringify({ name: 'app', private: true, scripts: { lint: 'node -e 0' }, dependencies: { leftpad: '1.0.0' } }, null, 2) + '\n',
+  });
+  git('add', '-A');
+  git('commit', '-q', '-m', 'pr', '--no-verify');
+  const run = command => spawnSync('bash', ['-c', command], { cwd: dir, encoding: 'utf8' });
+  assert.equal(run('bash scripts/check.sh --all').status, 0, 'naive CI is fooled');
+  const trusted = run('git show base:scripts/trusted-check.sh > "${TMPDIR:-/tmp}/tc-$$.sh" && bash "${TMPDIR:-/tmp}/tc-$$.sh" base');
+  assert.equal(trusted.status, 1, trusted.stdout + trusted.stderr);
+  assert.match(trusted.stdout, /NOT used for this run[\s\S]*app\/package\.json \("scripts" only\)/);
+  const pkg = JSON.parse(readFileSync(join(dir, 'app/package.json'), 'utf8'));
+  assert.deepEqual(pkg.scripts, { lint: 'cd .. && bash lint.sh' });
+  assert.deepEqual(pkg.dependencies, { leftpad: '1.0.0' }, 'dependency changes are not reverted');
+});

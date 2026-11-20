@@ -40,6 +40,25 @@ while IFS= read -r path; do
   fi
 done <<<"$protected"
 
+# package.json cannot be protected as a whole (it also carries dependency changes), but its
+# "scripts" decide what a check like `npm --prefix web run lint` does. A PR could change
+# "lint": "tsc --noEmit" to "lint": "true". Use the base branch's scripts in every package.json the
+# base has; dependency changes still apply.
+if command -v node >/dev/null 2>&1; then
+  while IFS= read -r pkg; do
+    git cat-file -e "$base:$pkg" 2>/dev/null || continue
+    if git show "$base:$pkg" | node -e '
+      const fs = require("fs");
+      const file = process.argv[1];
+      const base = JSON.parse(fs.readFileSync(0, "utf8"));
+      const head = JSON.parse(fs.readFileSync(file, "utf8"));
+      if (JSON.stringify(base.scripts ?? {}) === JSON.stringify(head.scripts ?? {})) process.exit(1);
+      if (base.scripts === undefined) delete head.scripts; else head.scripts = base.scripts;
+      fs.writeFileSync(file, JSON.stringify(head, null, 2) + "\n");
+    ' "$pkg" 2>/dev/null; then changed+=("$pkg (\"scripts\" only)"); fi
+  done < <(git ls-files -- 'package.json' '**/package.json')
+fi
+
 if (( ${#changed[@]} )); then
   echo "Note: this PR changes protected quality files; they are NOT used for this run (base versions are):"
   printf '  - %s\n' "${changed[@]}"
