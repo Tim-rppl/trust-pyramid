@@ -46,7 +46,7 @@ test('Codex metadata and Claude plugin manifests are present and consistent', ()
 
 test('shell templates are executable in the git index', () => {
   // The index mode is what a clone gets. The file system mode says nothing on Windows (core.fileMode=false).
-  const paths = ['scripts/check.sh', 'scripts/stop-gate.sh', 'scripts/install-agent-hooks.sh', 'scripts/trusted-check.sh', 'scripts/no-suppressions.sh', 'scripts/gate-log.sh', 'githooks/pre-commit', 'github-text/commit-msg']
+  const paths = ['scripts/check.sh', 'scripts/stop-gate.sh', 'scripts/install-agent-hooks.sh', 'scripts/hook-status.sh', 'scripts/trusted-check.sh', 'scripts/no-suppressions.sh', 'scripts/gate-log.sh', 'githooks/pre-commit', 'github-text/commit-msg']
     .map(path => `skills/trust-pyramid/templates/${path}`);
   const modes = execFileSync('git', ['ls-files', '-s', '--', ...paths], { cwd: ROOT, encoding: 'utf8' }).trim().split('\n');
   assert.equal(modes.length, paths.length, 'every shell template is tracked');

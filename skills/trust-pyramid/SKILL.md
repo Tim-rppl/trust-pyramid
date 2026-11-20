@@ -113,9 +113,15 @@ each host agent, CI, branch protection instructions, and the PR template. Instal
 index, and Linux CI then fails with `Permission denied`).
 
 Agents usually cannot write their own host config (Claude Code protects `.claude/settings*.json`,
-Codex protects `.codex/`). Stage the hook configs in `quality/install/` (`claude-settings.json`,
-`claude-settings.local.json`, `codex-hooks.json`), install `scripts/install-agent-hooks.sh`, and
-ask the user to run it. Stage the `permissions.deny` list for protected paths **last**, after every
+Codex protects `.codex/`), and neither host runs a hook that is not registered in its config: the
+Stop hook is OFF until the user enables it. Stage the hook configs in `quality/install/`
+(`claude-settings.json`, `claude-settings.local.json`, `codex-hooks.json`; stage Codex only if the
+user uses Codex), install `scripts/install-agent-hooks.sh` and `scripts/hook-status.sh`, and ask the
+user to run `bash scripts/install-agent-hooks.sh` in a terminal. It shows each change, asks, merges
+into existing config files (nothing is overwritten), and enables pre-commit. Then run
+`bash scripts/hook-status.sh` yourself: **do not continue past Phase 5 until it reports every gate
+enabled**, unless the user explicitly declines (record that in `docs/QUALITY.md`). Tell the user to
+start a new agent session afterwards: hooks are read when a session starts. Stage the `permissions.deny` list for protected paths **last**, after every
 other edit: once it is in place the agent can no longer edit gate files (by design), so earlier
 installation locks it out.
 
@@ -148,6 +154,8 @@ Write a short root `AGENTS.md` (Claude Code: `CLAUDE.md` containing `@AGENTS.md`
    user to) and run the checks again on a fresh clone of that commit: gates that only pass on an
    uncommitted working tree are broken. Check `git ls-files -s scripts .githooks`: every script and
    hook must be `100755`, and `git ls-files --eol scripts .githooks` must show `i/lf`.
+   Run `bash scripts/hook-status.sh`: every gate must be enabled, and after the user has ended one
+   turn in a new session it must show when the Stop hook last ran (proof the host really runs it).
 2. Prove no check is vacuous: introduce one violation per check (lint rule, boundary, test,
    smoke step), confirm it fails, then restore. Restore from a backup or with an exact edit,
    never with `git checkout` on files that hold uncommitted work.
@@ -176,8 +184,9 @@ Commit to a new branch. Never push or deploy unless the user asks.
 |---|---|
 | `templates/scripts/check.sh` | `scripts/check.sh` (edit the `CHECKS` table) |
 | `templates/scripts/stop-gate.sh` | `scripts/stop-gate.sh` |
-| `templates/scripts/install-agent-hooks.sh` | `scripts/install-agent-hooks.sh` (the user runs it) |
-| `templates/claude/settings.json` | `.claude/settings.json` (merge if it exists): the Stop hook |
+| `templates/scripts/install-agent-hooks.sh` | `scripts/install-agent-hooks.sh` (the user runs it; asks, then merges) |
+| `templates/scripts/hook-status.sh` | `scripts/hook-status.sh` (is every gate on in this clone; pre-commit reminds until it is) |
+| `templates/claude/settings.json` | staged as `quality/install/claude-settings.json`; the installer merges it into `.claude/settings.json`: the Stop hook |
 | `templates/claude/settings.local.json` | `.claude/settings.local.json` (per machine): `permissions.deny` for gate files |
 | `templates/codex/hooks.json` | `.codex/hooks.json` |
 | `templates/githooks/pre-commit` | `.githooks/pre-commit` + `git config core.hooksPath .githooks` |

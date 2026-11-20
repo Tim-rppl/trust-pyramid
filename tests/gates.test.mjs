@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
-import { TEMPLATES, copyTemplate, tempRepo, writeFiles } from './helpers.mjs';
+import { TEMPLATES, copyTemplate, tempDir, tempRepo, writeFiles } from './helpers.mjs';
 
 function repoWithChecks() {
   const { dir, git } = tempRepo({
@@ -85,15 +85,102 @@ test('pre-commit blocks a commit whose staged files fail the checks', () => {
   assert.match(commit.stdout + commit.stderr, /Commit blocked/);
 });
 
-test('install-agent-hooks installs staged hook configs and never overwrites existing ones', () => {
-  const { dir } = tempRepo({ 'quality/install/claude-settings.json': '{"hooks":{}}\n', 'quality/install/claude-settings.local.json': '{"permissions":{}}\n', 'quality/install/codex-hooks.json': '{"hooks":{}}\n', '.codex/hooks.json': '{"mine":true}\n' });
+// A project that already has its own .claude/settings.json and .codex/hooks.json (most real ones do).
+function repoWithStagedHooks() {
+  const { dir, git } = repoWithChecks();
+  git('config', '--unset', 'core.hooksPath');
   copyTemplate('scripts/install-agent-hooks.sh', dir);
-  const result = spawnSync('bash', ['scripts/install-agent-hooks.sh'], { cwd: dir, encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /installed: \.claude\/settings\.json/);
-  assert.match(result.stdout, /installed: \.claude\/settings\.local\.json/);
-  assert.match(result.stdout, /exists, not overwritten: \.codex\/hooks\.json/);
-  assert.equal(readFileSync(join(dir, '.codex/hooks.json'), 'utf8'), '{"mine":true}\n');
+  copyTemplate('scripts/hook-status.sh', dir);
+  copyTemplate('claude/settings.json', dir, 'quality/install/claude-settings.json');
+  copyTemplate('claude/settings.local.json', dir, 'quality/install/claude-settings.local.json');
+  copyTemplate('codex/hooks.json', dir, 'quality/install/codex-hooks.json');
+  writeFiles(dir, {
+    '.claude/settings.json': JSON.stringify({ model: 'mine', permissions: { allow: ['Bash(npm test)'] }, hooks: { PostToolUse: [{ hooks: [{ type: 'command', command: 'echo mine' }] }] } }, null, 2),
+    '.codex/hooks.json': JSON.stringify({ hooks: { SessionStart: [{ hooks: [{ type: 'command', command: 'echo hi' }] }] } }, null, 2),
+  });
+  const home = tempDir(); // never read the real ~/.claude/settings.json
+  const sh = (command, extra = {}) => spawnSync('bash', ['-c', command], { cwd: dir, encoding: 'utf8', input: '', env: { ...process.env, HOME: home, ...extra } });
+  return { dir, git, home, sh };
+}
+const json = (dir, path) => JSON.parse(readFileSync(join(dir, path), 'utf8'));
+const stopCommands = config => (config.hooks?.Stop ?? []).flatMap(group => group.hooks.map(hook => hook.command));
+
+test('hook-status reports a Stop hook that is staged but not enabled', () => {
+  const { sh } = repoWithStagedHooks();
+  const status = sh('bash scripts/hook-status.sh');
+  assert.equal(status.status, 1);
+  assert.match(status.stdout, /Claude Code Stop hook is NOT enabled/);
+  assert.match(status.stdout, /Codex Stop hook is NOT enabled/);
+  assert.match(status.stdout, /pre-commit is NOT enabled/);
+  assert.match(status.stdout, /bash scripts\/install-agent-hooks\.sh/);
+});
+
+test('install-agent-hooks merges into existing configs, keeps what is there, and is idempotent', () => {
+  const { dir, sh } = repoWithStagedHooks();
+  const install = sh('bash scripts/install-agent-hooks.sh --yes');
+  assert.equal(install.status, 0, install.stdout + install.stderr);
+  assert.match(install.stdout, /All gates for this clone are enabled/);
+
+  const claude = json(dir, '.claude/settings.json');
+  assert.equal(claude.model, 'mine');
+  assert.deepEqual(claude.permissions.allow, ['Bash(npm test)']);
+  assert.equal(claude.hooks.PostToolUse[0].hooks[0].command, 'echo mine');
+  assert.deepEqual(stopCommands(claude), ['bash "$CLAUDE_PROJECT_DIR/scripts/stop-gate.sh"']);
+  assert.ok(json(dir, '.claude/settings.local.json').permissions.deny.includes('Edit(/scripts/**)'));
+  const codex = json(dir, '.codex/hooks.json');
+  assert.equal(codex.hooks.SessionStart[0].hooks[0].command, 'echo hi');
+  assert.equal(stopCommands(codex).length, 1);
+  assert.equal(json(dir, '.claude/settings.json.bak').model, 'mine', 'the previous file is kept');
+  assert.equal(sh('git config core.hooksPath').stdout.trim(), '.githooks');
+
+  const again = sh('bash scripts/install-agent-hooks.sh --yes');
+  assert.equal(again.status, 0);
+  assert.match(again.stdout, /already enabled, nothing to change/);
+  assert.equal(stopCommands(json(dir, '.claude/settings.json')).length, 1, 'no duplicate Stop hook');
+});
+
+test('install-agent-hooks changes nothing without a yes, and an existing stop-gate entry is kept', () => {
+  const { dir, sh } = repoWithStagedHooks();
+  const before = readFileSync(join(dir, '.claude/settings.json'), 'utf8');
+  const noTerminal = sh('bash scripts/install-agent-hooks.sh');
+  assert.equal(noTerminal.status, 1);
+  assert.match(noTerminal.stdout, /\+ hooks\.Stop: bash "\$CLAUDE_PROJECT_DIR\/scripts\/stop-gate\.sh"/, 'shows what it would add');
+  assert.match(noTerminal.stdout, /Not applied: no terminal to ask/);
+  assert.equal(readFileSync(join(dir, '.claude/settings.json'), 'utf8'), before);
+
+  writeFiles(dir, { '.claude/settings.json': JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: 'scripts/stop-gate.sh' }] }] } }) });
+  const install = sh('bash scripts/install-agent-hooks.sh --yes');
+  assert.match(install.stdout, /already runs stop-gate \(kept as is\): scripts\/stop-gate\.sh/);
+  assert.deepEqual(stopCommands(json(dir, '.claude/settings.json')), ['scripts/stop-gate.sh']);
+});
+
+test('hook-status flags disableAllHooks and shows when the Stop hook last ran', () => {
+  const { dir, home, sh } = repoWithStagedHooks();
+  sh('bash scripts/install-agent-hooks.sh --yes');
+  assert.match(sh('bash scripts/hook-status.sh').stdout, /has not run yet in this clone/);
+  sh('bash scripts/stop-gate.sh');
+  assert.match(sh('bash scripts/hook-status.sh').stdout, /Stop hook last ran: \d{4}-\d\d-\d\d/);
+
+  writeFiles(home, { '.claude/settings.json': '{"disableAllHooks": true}' });
+  const off = sh('bash scripts/hook-status.sh');
+  assert.equal(off.status, 1);
+  assert.match(off.stdout, /disableAllHooks.*runs no hooks at all/);
+  assert.ok(dir);
+});
+
+test('pre-commit reminds on every commit while the Stop hook is off, without blocking', () => {
+  const { dir, git, sh } = repoWithStagedHooks();
+  git('config', 'core.hooksPath', '.githooks');
+  writeFiles(dir, { 'notes.txt': 'x\n' });
+  const commit = sh('git add notes.txt && git commit -q -m notes');
+  assert.equal(commit.status, 0, commit.stderr);
+  assert.match(commit.stderr, /Claude Code Stop hook is NOT enabled/);
+
+  sh('bash scripts/install-agent-hooks.sh --yes');
+  writeFiles(dir, { 'notes.txt': 'y\n' });
+  const quiet = sh('git add notes.txt && git commit -q -m notes2');
+  assert.equal(quiet.status, 0, quiet.stderr);
+  assert.doesNotMatch(quiet.stderr, /NOT enabled/);
 });
 
 test('the Stop hook runs only fast checks; pre-commit and CI run everything', () => {

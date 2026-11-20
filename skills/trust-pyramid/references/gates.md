@@ -78,7 +78,10 @@ prefixes, a label, a command). Behavior:
 
 ## Pre-commit
 
-`templates/githooks/pre-commit` → `.githooks/pre-commit`, then `git config core.hooksPath .githooks`.
+`templates/githooks/pre-commit` → `.githooks/pre-commit`, then `git config core.hooksPath .githooks`
+(`scripts/install-agent-hooks.sh` asks and does it). On every commit it also runs
+`scripts/hook-status.sh --quiet` and prints a reminder while the agent Stop hook is not enabled; the
+reminder never blocks the commit.
 Document the one-time `git config` in the README; add a `prepare`/`postinstall` script that sets it
 when the package manager supports it.
 
@@ -120,6 +123,16 @@ because each agent protects its own config folder; in testing, Claude could not 
 - Codex: `templates/codex/hooks.json` → `quality/install/codex-hooks.json` → `.codex/hooks.json`.
   Codex only loads project hooks from trusted projects and asks the user to review and trust new or
   changed hooks; tell the user to approve it once.
+
+A hook that is not registered never runs, and nothing tells the user. So:
+- `scripts/install-agent-hooks.sh` (the user runs it) shows each change and asks, then merges the
+  staged config into the existing file: hook entries are added unless that command (or any
+  `scripts/stop-gate.sh` entry) is already there, permission lists are unioned, nothing is removed,
+  and the previous file is kept as `<file>.bak`. `--yes` applies without asking.
+- `scripts/hook-status.sh` reports, per clone: the Claude Code and Codex Stop hooks (for the hosts
+  staged in `quality/install/`), `disableAllHooks` in user or project settings, pre-commit, and
+  when the Stop hook last ran (`stop-gate.sh` writes `.quality-state/stop-gate-last-run`). Exit 1
+  when something expected is missing. Setup does not pass Phase 5 until it is clean.
 
 ## CI
 

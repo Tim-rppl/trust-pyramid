@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# Enable once per clone: git config core.hooksPath .githooks
+# Enable once per clone: git config core.hooksPath .githooks (scripts/install-agent-hooks.sh does it)
+# The agent Stop hook is the first gate, and agents cannot enable it themselves: remind on every
+# commit until it is on. A reminder only; it never blocks the commit.
+if [[ -f scripts/hook-status.sh ]] && ! bash scripts/hook-status.sh --quiet >&2; then echo >&2; fi
 if ! TRUST_GATE=pre-commit bash scripts/check.sh --staged; then
   echo
   echo "Commit blocked: fix the failures above. Do not bypass with --no-verify."

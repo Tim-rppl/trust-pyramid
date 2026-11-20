@@ -20,6 +20,8 @@ state_dir=.quality-state
 counter=$state_dir/stop-gate-count
 handover=$state_dir/stop-gate-handover
 mkdir -p "$state_dir"
+# Proof that the host really runs this hook; scripts/hook-status.sh shows it.
+date '+%Y-%m-%d %H:%M:%S' > "$state_dir/stop-gate-last-run"
 
 max_attempts=${STOP_GATE_MAX_ATTEMPTS:-2}
 

@@ -106,7 +106,7 @@ flowchart TB
 
 **已知限制。**
 - 本地关卡（Stop hook、pre-commit）是快速反馈，不是保证：agent 可以修改它们。Stop hook 只检查未提交的改动；已提交的改动由 pre-commit 和 CI 检查。只有可信 CI 加上分支保护和代码负责人审批，才是真正跳不过的。
-- agent 装不了自己的 hook 配置，需要你运行一次 `scripts/install-agent-hooks.sh`。
+- Stop hook 在你启用之前是关闭的：agent 写不了自己的 hook 配置。每个克隆需要你运行一次 `bash scripts/install-agent-hooks.sh`（先询问，再合并进已有配置）；`scripts/hook-status.sh` 显示哪些已启用，没启用时每次 commit 都会提醒。
 - AI 审核员不稳定（实测 10 次里漏了 1 次埋入的问题）。它的发现必须有证据才算数，确认的问题应该变成规则或测试。
 - Codex 的沙箱禁止启动浏览器，所以在 Codex 下冒烟流程放在 CI 里跑。
 - 实测规模很小（每组只跑一次）。详见 [docs/BENCHMARK.md](docs/BENCHMARK.md)（英文）。

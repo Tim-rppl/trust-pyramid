@@ -123,7 +123,9 @@ who cannot read code but need agents they can trust.
 - Local gates (Stop hook, pre-commit) are fast feedback, not a guarantee: an agent can edit them.
   The Stop hook checks only uncommitted changes; committed work is checked by pre-commit and CI.
   Only trusted CI with branch protection and code owners is unskippable.
-- Agents cannot install their own hook configs; you run `scripts/install-agent-hooks.sh` once.
+- The Stop hook is off until you enable it: agents cannot write their own hook configs. Run
+  `bash scripts/install-agent-hooks.sh` once per clone (it asks, then merges into existing settings);
+  `scripts/hook-status.sh` shows what is on, and every commit reminds you while it is not.
 - The AI reviewer is not deterministic (it missed a planted bug in 1 of 10 runs). Its findings count
   only with evidence, and confirmed ones should become rules or tests.
 - Codex's sandbox blocks launching browsers, so the smoke flow runs in CI there.
