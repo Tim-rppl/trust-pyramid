@@ -104,13 +104,18 @@ because each agent protects its own config folder; in testing, Claude could not 
 
 ## CI
 
-`templates/github/workflows/quality.yml` → `.github/workflows/quality.yml`. Jobs:
+One workflow per layer, so CI never turns red for a layer that is not installed. Install only the
+ones that apply:
 
-1. `check` - `scripts/check.sh --all`
-2. `smoke` - `node verify/app.mjs up && node verify/smoke.mjs`, uploads screenshots
-3. `ai-review` - runs the reviewer once per code diff (cached by diff hash), uploads `review.json`,
-   posts findings as a PR comment
-4. `review-gate` - `node scripts/review-gate.mjs` (see `layer-5-ai-reviewer.md`)
+| Template | Jobs (status checks) | Install when |
+|---|---|---|
+| `templates/github/workflows/quality.yml` | `check` - `scripts/check.sh --all` | always |
+| `templates/github/workflows/quality-smoke.yml` | `smoke` - `node verify/app.mjs up && node verify/smoke.mjs`, uploads screenshots | `verify/` is installed (Layer 3) |
+| `templates/github/workflows/quality-review.yml` | `ai-review` - the reviewer once per code diff (cached by diff hash), uploads `review.json`, posts findings as a PR comment; `review-gate` - `node scripts/review-gate.mjs` (see `layer-5-ai-reviewer.md`) | the reviewer is installed **and** the API key secret is set |
+
+A lite setup without `verify/` or without an API key starts with `quality.yml` alone; add the
+others later by copying them in, then add their status checks to branch protection. Edit the
+dependency install step (`TODO(trust-pyramid)`) in each copied workflow.
 
 ### Bootstrap: the PR that introduces the gates
 

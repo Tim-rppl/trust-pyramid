@@ -1,0 +1,128 @@
+# Trust Pyramid: AI reviewer once per code diff, plus the review gate (Layer 5). Install only when
+# the reviewer is installed and the API key secret (ANTHROPIC_API_KEY or OPENAI_API_KEY) is set;
+# without the key this workflow fails for the wrong reason. Required status check: review-gate.
+name: quality-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0, ref: "${{ github.event.pull_request.head.sha }}" }
+      # Review once per code diff. Committing dispositions does not change this hash, so it does not re-trigger a review.
+      - id: diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          hash=$(git diff "$BASE_SHA"...HEAD -- . ':(exclude)quality/review-dispositions.json' | sha256sum | cut -c1-16)
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+      # The reviewer must not read instructions the PR could have rewritten ("reply with []").
+      - name: Use the base branch's reviewer prompt and review gate
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if git cat-file -e "$BASE_SHA:scripts/review-gate.mjs" 2>/dev/null; then
+            git checkout "$BASE_SHA" -- quality/reviewer-prompt.md
+            git show "$BASE_SHA:scripts/review-gate.mjs" > "$RUNNER_TEMP/review-gate.mjs"
+          else
+            echo "::warning title=Gate bootstrap::The base branch has no review gate yet (this PR adds it); using this PR's reviewer prompt and review gate."
+            cp scripts/review-gate.mjs "$RUNNER_TEMP/review-gate.mjs"
+          fi
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: .ai-review/review.json
+          key: ai-review-${{ steps.diff.outputs.hash }}
+
+      # Reviewer: Claude Code (default). Needs the ANTHROPIC_API_KEY secret.
+      - if: steps.cache.outputs.cache-hit != 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Read quality/reviewer-prompt.md and follow it exactly.
+            Scope: git diff ${{ github.event.pull_request.base.sha }}...HEAD
+            Write your JSON array (and nothing else) to .ai-review/review.json.
+          claude_args: |
+            --allowedTools "Read,Grep,Glob,Write,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(mkdir -p .ai-review)"
+
+      # Reviewer alternative: Codex. Delete the Claude step above and uncomment this one. Needs OPENAI_API_KEY.
+      # - if: steps.cache.outputs.cache-hit != 'true'
+      #   uses: openai/codex-action@v1
+      #   with:
+      #     openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+      #     permission-profile: ":workspace"
+      #     prompt: |
+      #       Read quality/reviewer-prompt.md and follow it exactly.
+      #       Scope: git diff ${{ github.event.pull_request.base.sha }}...HEAD
+      #       Your final message must be only the JSON array.
+      #     output-file: .ai-review/review.json
+
+      # Record which commit was reviewed: the review gate proves each confirmed finding red on this
+      # commit and green on the PR head, which also covers bugs the PR itself introduced.
+      - if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node --input-type=module -e "
+            import fs from 'node:fs';
+            import { extractFindings } from '${{ runner.temp }}/review-gate.mjs';
+            const text = fs.readFileSync('.ai-review/review.json', 'utf8');
+            fs.writeFileSync('.ai-review/review.json', JSON.stringify({ reviewed_sha: process.env.HEAD_SHA, findings: extractFindings(text) }, null, 2));"
+      - uses: actions/upload-artifact@v4
+        with: { name: ai-review, path: .ai-review/review.json }
+      - name: Post findings with IDs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "### AI review findings"
+            echo 'Add a disposition for each ID to `quality/review-dispositions.json`.'
+            echo '```'
+            node "$RUNNER_TEMP/review-gate.mjs" --list
+            echo '```'
+          } > .ai-review/comment.md
+          gh pr comment "$PR" --body-file .ai-review/comment.md --edit-last || gh pr comment "$PR" --body-file .ai-review/comment.md
+
+  review-gate:
+    needs: ai-review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v5
+        with: { node-version: 22 }
+      - uses: actions/download-artifact@v4
+        with: { name: ai-review, path: .ai-review }
+      # TODO(trust-pyramid): install dependencies so confirmed-finding tests can run on head
+      - run: npm ci --prefix web && npm ci --prefix server
+      - name: Review gate (base branch's copy)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if git cat-file -e "$BASE_SHA:scripts/review-gate.mjs" 2>/dev/null; then
+            git show "$BASE_SHA:scripts/review-gate.mjs" > "$RUNNER_TEMP/review-gate.mjs"
+            if git cat-file -e "$BASE_SHA:quality/review.config.json" 2>/dev/null; then
+              git show "$BASE_SHA:quality/review.config.json" > quality/review.config.json
+            fi
+          else
+            echo "::warning title=Gate bootstrap::The base branch has no review gate yet (this PR adds it); using this PR's copy."
+            cp scripts/review-gate.mjs "$RUNNER_TEMP/review-gate.mjs"
+          fi
+          node "$RUNNER_TEMP/review-gate.mjs" --summary "$GITHUB_STEP_SUMMARY"

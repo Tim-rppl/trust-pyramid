@@ -265,7 +265,7 @@ Trust Pyramid 流程里需要运行时验证的地方，就用它生成的这个
 | 验证 | `verify/app.mjs`（up/click/fill/snapshot/screenshot/errors）、`verify/smoke.mjs`、`verify/feature-map.md`、`verify/fake-openai.mjs` |
 | AI 审核员 | `quality/reviewer-prompt.md`、`.claude/agents/quality-reviewer.md`、`scripts/review-gate.mjs`、`quality/review-dispositions.json` |
 | 复利台账 | `quality/rule-candidates.md`、`quality/review-log.md` |
-| CI | `.github/workflows/quality.yml`、`.github/pull_request_template.md` |
+| CI | `.github/workflows/quality.yml`（装了对应层时再加 `quality-smoke.yml`、`quality-review.yml`）、`.github/pull_request_template.md` |
 | 文字 | 简短的 `AGENTS.md`（`CLAUDE.md` 里写 `@AGENTS.md`）、`docs/QUALITY.md` |
 
 所有内容都会按你的技术栈调整。内置了 TypeScript/React/Node/Firebase、Next.js + Postgres、

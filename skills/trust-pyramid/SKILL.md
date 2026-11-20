@@ -161,7 +161,7 @@ Commit to a new branch. Never push or deploy unless the user asks.
 | `templates/quality/protected-paths.txt`, `templates/quality/allowed-suppressions.txt` | `quality/` (edit the list for the project) |
 | `templates/github/CODEOWNERS` | `.github/CODEOWNERS` (replace `@OWNER`) |
 | `templates/claude/agents/quality-reviewer.md` | `.claude/agents/quality-reviewer.md` |
-| `templates/github/` | `.github/` (workflow, PR template) |
+| `templates/github/` | `.github/` (PR template, and one workflow per installed layer: `templates/github/workflows/quality.yml` always, `templates/github/workflows/quality-smoke.yml` with `verify/`, `templates/github/workflows/quality-review.yml` with the reviewer and its API key) |
 | `templates/AGENTS.md` | `AGENTS.md` (+ `CLAUDE.md` containing `@AGENTS.md`) |
 | `templates/gitignore-additions.txt` | append to `.gitignore` |
 | `templates/gitattributes` | append to `.gitattributes` (LF line endings for gate files on Windows) |

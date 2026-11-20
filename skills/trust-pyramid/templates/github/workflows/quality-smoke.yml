@@ -1,0 +1,41 @@
+# Trust Pyramid: smoke flow in the running app (Layer 3). Install only when verify/ exists.
+# Required status check: smoke. See quality.yml for the full list of workflows.
+name: quality-smoke
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-smoke-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v5
+        with: { node-version: 22 }
+      # TODO(trust-pyramid): add runtimes the local stack needs (e.g. Java 21 for Firebase emulators)
+      - run: npm ci --prefix web && npm ci --prefix server && npm ci --prefix verify
+      - run: npx --prefix verify playwright install --with-deps chromium
+      - name: Smoke flow with the base branch's smoke steps
+        run: |
+          if git cat-file -e "$BASE_SHA:scripts/trusted-check.sh" 2>/dev/null; then
+            git show "$BASE_SHA:scripts/trusted-check.sh" > "$RUNNER_TEMP/trusted-check.sh"
+          else
+            cp scripts/trusted-check.sh "$RUNNER_TEMP/trusted-check.sh"  # bootstrap: this PR adds the gates
+          fi
+          bash "$RUNNER_TEMP/trusted-check.sh" "$BASE_SHA" bash -c 'node verify/app.mjs up && node verify/smoke.mjs'
+      - if: always()
+        run: node verify/app.mjs down
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: smoke-artifacts, path: verify/.state/artifacts }

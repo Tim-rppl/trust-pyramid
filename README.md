@@ -290,7 +290,7 @@ it into a rule, then record dispositions in quality/review-dispositions.json.
 | Verification | `verify/app.mjs` (up/click/fill/snapshot/screenshot/errors), `verify/smoke.mjs`, `verify/feature-map.md`, `verify/fake-openai.mjs` |
 | AI reviewer | `quality/reviewer-prompt.md`, `.claude/agents/quality-reviewer.md`, `scripts/review-gate.mjs`, `quality/review-dispositions.json` |
 | Ratchet ledger | `quality/rule-candidates.md`, `quality/review-log.md` |
-| CI | `.github/workflows/quality.yml`, `.github/pull_request_template.md` |
+| CI | `.github/workflows/quality.yml` (+ `quality-smoke.yml`, `quality-review.yml` when those layers are installed), `.github/pull_request_template.md` |
 | Prose | a short `AGENTS.md` (and `CLAUDE.md` → `@AGENTS.md`), `docs/QUALITY.md` |
 
 Everything is adapted to your stack. Recipes are included for TypeScript/React/Node/Firebase,

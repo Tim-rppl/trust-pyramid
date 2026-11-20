@@ -54,7 +54,8 @@ test('shell templates are executable in the git index', () => {
 });
 
 test('CI never executes gate files from the PR checkout', () => {
-  const workflow = readFileSync(join(SKILL, 'templates/github/workflows/quality.yml'), 'utf8');
+  const workflow = ['quality.yml', 'quality-smoke.yml', 'quality-review.yml']
+    .map(file => readFileSync(join(SKILL, 'templates/github/workflows', file), 'utf8')).join('\n');
   const runLines = workflow.split('\n').filter(line => !line.trim().startsWith('#'));
   const body = runLines.join('\n');
   assert.doesNotMatch(body, /^\s*(- run: )?(bash )?scripts\/(check|trusted-check)\.sh/m, 'check.sh must run through the base copy of trusted-check.sh');
@@ -91,4 +92,17 @@ test('tests and templates never spawn npx or python3 by name (both break on Wind
     const text = readFileSync(join(ROOT, file), 'utf8');
     assert.doesNotMatch(text, /spawn(Sync)?\(\s*['"](npx|python3)['"]/, `${file} spawns npx/python3 directly`);
   }
+});
+
+test('CI is split per layer: the always-installed workflow needs neither verify/ nor an API key', () => {
+  const dir = join(SKILL, 'templates/github/workflows');
+  const jobs = file => [...readFileSync(join(dir, file), 'utf8').split('\njobs:\n')[1].matchAll(/^ {2}([\w-]+):$/gm)].map(match => match[1]);
+  assert.deepEqual(jobs('quality.yml'), ['check']);
+  assert.deepEqual(jobs('quality-smoke.yml'), ['smoke']);
+  assert.deepEqual(jobs('quality-review.yml'), ['ai-review', 'review-gate']);
+  const lite = readFileSync(join(dir, 'quality.yml'), 'utf8').split('\n').filter(line => !line.trim().startsWith('#')).join('\n');
+  assert.doesNotMatch(lite, /verify\/|secrets\.|review-gate/, 'quality.yml must work for a lite setup');
+  const prompt = readFileSync(join(SKILL, 'templates/quality/reviewer-prompt.md'), 'utf8');
+  assert.match(prompt, /verify\/feature-map\.md` \(only when `verify\/` is installed\)/);
+  assert.match(prompt, /AGENTS\.md.*sub-packages/);
 });
