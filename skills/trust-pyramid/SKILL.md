@@ -197,7 +197,8 @@ JavaScript/Node because the verification tooling (Playwright) is; for non-Node s
 
 - **A mistake happened twice** → follow `references/add-rule.md`.
 - **Before a PR** → CI runs the reviewer; in the full profile also run it locally (`references/layer-5-ai-reviewer.md`).
-- **Weekly sweep** → run the reviewer over the whole repo to collect rule candidates.
+- **Weekly sweep** → run the reviewer over one risk area at a time to collect rule candidates; estimate
+  the token cost from the line count first and tell the user (`references/layer-5-ai-reviewer.md`, "Sweeps").
 - **New feature** → check passes, verify in the running app, update feature map + smoke, attach evidence.
 
 ## Running environment
