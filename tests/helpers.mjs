@@ -19,6 +19,7 @@ export function tempRepo(files = {}) {
   git('init', '-q', '-b', 'main');
   git('config', 'user.email', 'test@example.test');
   git('config', 'user.name', 'test');
+  git('config', 'core.autocrlf', 'false'); // deterministic on Windows; installed projects get templates/gitattributes
   writeFiles(dir, files);
   git('add', '-A');
   git('commit', '-q', '-m', 'base', '--allow-empty');
@@ -35,5 +36,5 @@ export function writeFiles(dir, files) {
 
 export function copyTemplate(from, dir, to = from) {
   mkdirSync(dirname(join(dir, to)), { recursive: true });
-  cpSync(join(TEMPLATES, from), join(dir, to));
+  cpSync(join(TEMPLATES, from), join(dir, to), { recursive: true });
 }

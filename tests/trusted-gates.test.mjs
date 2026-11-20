@@ -79,3 +79,25 @@ test('a clean PR passes, and a PR that changes gate files is flagged but not fai
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /changes protected quality files/);
 });
+
+// Where SKILL.md installs each template (Python rules go to lint/ in Python projects; here the JS
+// rules take that place).
+const INSTALL = [
+  ['scripts', 'scripts'], ['githooks', '.githooks'], ['lint', 'lint'], ['quality', 'quality'],
+  ['github', '.github'], ['claude', '.claude'], ['codex', '.codex'], ['verify', 'verify'], ['AGENTS.md', 'AGENTS.md'],
+];
+
+test('the change that adds the full set of gate files passes no-suppressions.sh (it does not flag itself)', () => {
+  const { dir, git } = tempRepo({ 'src/app.js': 'export const ok = 1;\n' });
+  git('checkout', '-q', '-b', 'setup');
+  for (const [from, to] of INSTALL) copyTemplate(from, dir, to);
+  const run = command => spawnSync('bash', ['-c', command], { cwd: dir, encoding: 'utf8' });
+  const local = run('bash scripts/no-suppressions.sh');
+  assert.equal(local.status, 0, `untracked gate files: ${local.stdout}`);
+  git('add', '-A');
+  git('commit', '-q', '-m', 'add gates', '--no-verify');
+  const ci = run('bash scripts/no-suppressions.sh main');
+  assert.equal(ci.status, 0, `committed gate files vs base: ${ci.stdout}`);
+  writeFiles(dir, { 'src/app.js': 'export const ok = 1; // eslint-disable-line\n' });
+  assert.equal(run('bash scripts/no-suppressions.sh main').status, 1, 'other files are still checked');
+});

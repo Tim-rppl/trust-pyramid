@@ -10,8 +10,11 @@ cd "$(git rev-parse --show-toplevel)"
 PATTERN='(eslint|oxlint|biome)-disable|@ts-(ignore|nocheck|expect-error)|#[[:space:]]*noqa|#[[:space:]]*type:[[:space:]]*ignore|pylint:[[:space:]]*disable|//[[:space:]]*nolint|@SuppressWarnings|istanbul ignore|c8 ignore|NOLINT'
 allowed=quality/allowed-suppressions.txt
 
-if [[ $# -gt 0 ]]; then diff=$(git diff "$1" -- . ':(exclude)lint/fixtures' ':(exclude)**/fixtures/**')
-else diff=$( { git diff HEAD -- . ':(exclude)lint/fixtures'; git ls-files --others --exclude-standard -z | xargs -0 -I{} git diff --no-index /dev/null {} 2>/dev/null; } )
+# This script names the patterns it looks for, so it must not scan itself: the change that first adds
+# it would fail on its own PATTERN line. Changes to it are protected by CODEOWNERS and trusted-check.
+self=scripts/no-suppressions.sh
+if [[ $# -gt 0 ]]; then diff=$(git diff "$1" -- . ':(exclude)lint/fixtures' ':(exclude)**/fixtures/**' ":(exclude)$self")
+else diff=$( { git diff HEAD -- . ':(exclude)lint/fixtures' ":(exclude)$self"; git ls-files --others --exclude-standard -z | grep -zvx "$self" | xargs -0 -I{} git diff --no-index /dev/null {} 2>/dev/null; } )
 fi
 
 hits=$(awk -v pattern="$PATTERN" '
