@@ -32,6 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      TRUST_GATE: ci  # failing checks are listed in the job summary (scripts/gate-log.sh)
     steps:
       - uses: actions/checkout@v5
         with: { fetch-depth: 0 }

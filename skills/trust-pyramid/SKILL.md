@@ -180,6 +180,7 @@ Commit to a new branch. Never push or deploy unless the user asks.
 | `templates/verify/` | `verify/` (CLI, config, smoke, feature map, fake model server) |
 | `templates/quality/` | `quality/` (reviewer prompt, review config, dispositions, ledgers) |
 | `templates/scripts/review-gate.mjs` | `scripts/review-gate.mjs` |
+| `templates/scripts/gate-log.sh`, `templates/scripts/gate-report.mjs` | `scripts/` (record what the gates block; weekly summary) |
 | `templates/scripts/trusted-check.sh`, `templates/scripts/no-suppressions.sh` | `scripts/` (CI uses the base branch's copies) |
 | `templates/quality/protected-paths.txt`, `templates/quality/allowed-suppressions.txt` | `quality/` (edit the list for the project) |
 | `templates/github/CODEOWNERS` | `.github/CODEOWNERS` (replace `@OWNER`) |
@@ -199,6 +200,9 @@ JavaScript/Node because the verification tooling (Playwright) is; for non-Node s
 - **Before a PR** → CI runs the reviewer; in the full profile also run it locally (`references/layer-5-ai-reviewer.md`).
 - **Weekly sweep** → run the reviewer over one risk area at a time to collect rule candidates; estimate
   the token cost from the line count first and tell the user (`references/layer-5-ai-reviewer.md`, "Sweeps").
+- **Do the gates pay for themselves?** → `node scripts/gate-report.mjs --rules <rule IDs>` summarizes
+  `.quality-state/gate-log.jsonl` per week: blocks per gate and rule, rules that keep coming back
+  (improve the message or design the mistake away), rules that never fired. Show it to the user.
 - **New feature** → check passes, verify in the running app, update feature map + smoke, attach evidence.
 
 ## Running environment

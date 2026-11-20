@@ -4,6 +4,7 @@
 #   scripts/check.sh --staged   staged changes only (pre-commit)
 #   scripts/check.sh --all      everything (CI)
 #   scripts/check.sh --fast     only checks marked |fast (the agent's Stop hook: seconds, not minutes)
+# With TRUST_GATE set (stop-hook, pre-commit, ci), each failing check is recorded by scripts/gate-log.sh.
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
@@ -67,6 +68,7 @@ for entry in "${CHECKS[@]}"; do
   else
     echo "✗ $label"
     summarize "$output"
+    [[ -n "${TRUST_GATE:-}" && -f scripts/gate-log.sh ]] && bash scripts/gate-log.sh "$label" <<<"$output"
     failed=1
   fi
 done

@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import { TEMPLATES, copyTemplate, tempRepo, writeFiles } from './helpers.mjs';
 
@@ -166,4 +167,45 @@ test('the Stop hook finds the repository from its own location, and fails loudly
   } finally {
     rmSync(elsewhere, { recursive: true, force: true });
   }
+});
+
+test('gate interceptions are logged per gate with rule IDs, and gate-report summarizes them', () => {
+  const { dir } = repoWithChecks();
+  copyTemplate('scripts/gate-log.sh', dir);
+  copyTemplate('scripts/gate-report.mjs', dir);
+  const test = join(dir, 'app/test.sh');
+  writeFileSync(test, readFileSync(test, 'utf8').replace('echo "not ok - value"', 'echo "not ok - value"\necho "app/x.tsx:4:18: UI text is not translated [Error/project(no-raw-ui-text)]"'));
+  writeFiles(dir, { 'app/value.txt': 'broken\n' });
+  assert.equal(run(dir, 'bash scripts/stop-gate.sh').status, 2);
+  assert.equal(run(dir, 'bash scripts/check.sh').status, 1, 'a manual run is not an interception');
+  const summary = join(dir, 'summary.md');
+  const ci = spawnSync('bash', ['-c', 'TRUST_GATE=ci bash scripts/check.sh --all'], { cwd: dir, encoding: 'utf8', env: { ...process.env, GITHUB_STEP_SUMMARY: summary } });
+  assert.equal(ci.status, 1);
+  assert.match(readFileSync(summary, 'utf8'), /Gate \*\*ci\*\* blocked: app: value is ok \(project\(no-raw-ui-text\)\)/);
+
+  const log = readFileSync(join(dir, '.quality-state/gate-log.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
+  assert.deepEqual(log.map(entry => entry.gate), ['stop-hook', 'ci']);
+  assert.deepEqual(log[0].rules, ['project(no-raw-ui-text)']);
+  assert.equal(log[0].check, 'app: value is ok');
+  assert.match(log[0].date, /^\d{4}-\d{2}-\d{2}T/);
+
+  const report = run(dir, 'node scripts/gate-report.mjs --rules "project(no-raw-ui-text),project(no-timing-patch)"');
+  assert.equal(report.status, 0, report.stderr);
+  assert.match(report.stdout, /Blocks per week\n\s+\d{4}-W\d{2}\s+2\s+stop-hook 1, ci 1/);
+  assert.match(report.stdout, /2\s+project\(no-raw-ui-text\)/);
+  assert.match(report.stdout, /Never fired: project\(no-timing-patch\)/);
+});
+
+test('gate-report flags rules that keep coming back across weeks', async () => {
+  const { summarize, isoWeek } = await import(pathToFileURL(join(TEMPLATES, 'scripts/gate-report.mjs')).href);
+  assert.equal(isoWeek(new Date('2026-11-21T10:00:00Z')), '2026-W47');
+  assert.equal(isoWeek(new Date('2027-01-01T10:00:00Z')), '2026-W53');
+  const report = summarize([
+    { date: '2026-11-16T09:00:00Z', gate: 'pre-commit', check: 'lint', rules: ['a(x)'] },
+    { date: '2026-11-24T09:00:00Z', gate: 'ci', check: 'lint', rules: ['a(x)', 'b(y)'] },
+    { date: '2026-11-24T10:00:00Z', gate: 'stop-hook', check: 'unit tests', rules: [] },
+  ], ['a(x)', 'c(z)']);
+  assert.deepEqual(report.repeated, ['a(x)']);
+  assert.deepEqual(report.neverFired, ['c(z)']);
+  assert.ok(report.rules.some(rule => rule.rule === '(check) unit tests'), 'failures without a rule ID are counted per check');
 });

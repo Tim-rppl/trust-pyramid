@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Enable once per clone: git config core.hooksPath .githooks
-if ! bash scripts/check.sh --staged; then
+if ! TRUST_GATE=pre-commit bash scripts/check.sh --staged; then
   echo
   echo "Commit blocked: fix the failures above. Do not bypass with --no-verify."
   exit 1

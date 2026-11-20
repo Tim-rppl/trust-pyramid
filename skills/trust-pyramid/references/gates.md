@@ -187,6 +187,19 @@ work, and `references/add-rule.md` asks the agent to write rules there. Both hol
 
 Nothing is switched off in the main checkout, and the gate change gets a human review.
 
+## Gate log: what the gates actually caught
+
+With `TRUST_GATE` set, `scripts/check.sh` records every failing check through
+`scripts/gate-log.sh`: the Stop hook sets `stop-hook`, pre-commit `pre-commit`, and the CI `check`
+job `ci`; trusted-check also records new suppression comments. Each block becomes one line in
+`.quality-state/gate-log.jsonl` (date, gate, check label, rule IDs found in the output, such as
+`project(no-raw-ui-text)` or `TP001`), and in CI a line in the job summary. Manual runs are not
+logged. The local log is per machine and gitignored; CI's record is the job summary.
+
+`node scripts/gate-report.mjs [--rules <id,id,...>]` prints blocks per week and gate, blocks per
+rule, rules that fired in more than one week, and (with `--rules`) rules that never fired. This
+answers the question users ask after setup: do the gates pay for themselves?
+
 ## PR template
 
 `templates/github/pull_request_template.md`: plain-language summary, smoke result, screenshots,

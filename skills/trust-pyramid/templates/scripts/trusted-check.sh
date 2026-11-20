@@ -67,5 +67,9 @@ fi
 
 status=0
 "$@" || status=1
-bash scripts/no-suppressions.sh "$base" || status=1
+if ! suppressions=$(bash scripts/no-suppressions.sh "$base"); then
+  status=1
+  [[ -n "${TRUST_GATE:-}" && -f scripts/gate-log.sh ]] && bash scripts/gate-log.sh "no new suppression comments" <<<"$suppressions"
+fi
+echo "$suppressions"
 exit $status
