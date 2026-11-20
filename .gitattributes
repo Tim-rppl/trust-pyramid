@@ -1,0 +1,5 @@
+# Keep LF everywhere, also on Windows checkouts with core.autocrlf=true: bash cannot run CRLF
+# scripts, and the tests parse Markdown and JSON line by line.
+* text=auto eol=lf
+*.gif binary
+*.png binary

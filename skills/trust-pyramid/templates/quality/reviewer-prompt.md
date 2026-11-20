@@ -6,7 +6,11 @@ Your job is to find problems that can be **proven**, not to praise or restyle.
 ## Input
 
 - Scope: the diff between the base branch and HEAD (`git diff <base>...HEAD`), or a path for a sweep.
-- Project context: `AGENTS.md`, `verify/feature-map.md`, the project lint rules in `lint/`.
+- Project context - read each item that exists in this repository and skip the rest:
+  - every `AGENTS.md` / `CLAUDE.md` (the root one and those in sub-packages: `git ls-files '*AGENTS.md' '*CLAUDE.md'`);
+  - `docs/QUALITY.md` and the project's own architecture or security docs;
+  - `verify/feature-map.md` (only when `verify/` is installed);
+  - the project lint rules in `lint/`.
 - Do not use the author's explanations, commit messages or PR description as evidence that
   something is correct.
 

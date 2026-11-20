@@ -63,7 +63,7 @@ flowchart TB
 |---|---|---|
 | agent 想结束任务 | Stop hook（Claude Code 和 Codex 共用一个脚本） | 很难，但 agent 能改本地 hook 文件，所以它负责快速反馈，不是最终保证 |
 | `git commit` | pre-commit hook | 只能用 `--no-verify` 绕过 |
-| 开 PR | CI：检查、冒烟、AI 审核、审核关卡，**使用主分支上的关卡文件** | **不能**，配合分支保护和代码负责人审批 |
+| 开 PR | CI：检查、冒烟、AI 审核、审核关卡，**使用主分支上的关卡文件** | **不能**，配合分支保护（GitHub Free 的私有仓库没有分支保护，此时只是提示） |
 | 合并 | 你根据证据批准 | 由你决定 |
 
 ## 实测结果
@@ -92,7 +92,7 @@ flowchart TB
 
 | 环节 | 消耗 token 吗 | 实测 / 预估 |
 |---|---|---|
-| agent 一次性搭建 | 是 | 25–30 分钟；在中等规模的 Remix 项目上，Claude 约 $6.5，Codex 约 850 万 token |
+| agent 一次性搭建 | 是 | 24–32 分钟；在中等规模的 Remix 项目上，Claude Code 约 $6.5，Codex 约 850 万 token（[基准测试](docs/BENCHMARK.md)，2026 年 11 月）；项目越大花费越多 |
 | lint、类型检查、测试、Stop hook、pre-commit、可信 CI | **否**，都是脚本 | 免费 |
 | 关卡拦下后，agent 修复 | 是 | 代码本来就对时为 0；否则多一两轮（Stop hook 最多拦 2 次） |
 | AI 审核员，每个 PR 在 CI 里跑一次 | 是 | 小改动约 $0.7；有发现时还要加上 agent 处理的用量 |
@@ -105,8 +105,8 @@ flowchart TB
 **什么时候值得用。** 长期维护的项目（规则写一次、之后永久免费运行）、有模型不可能知道的项目专属规矩、需要防止回归、用较小或较便宜的模型、参与的人很多，以及项目负责人看不懂代码、却需要能信任的 agent。
 
 **已知限制。**
-- 本地关卡（Stop hook、pre-commit）是快速反馈，不是保证：agent 可以修改它们。只有可信 CI 加上分支保护和代码负责人审批，才是真正跳不过的。
-- agent 装不了自己的 hook 配置，需要你运行一次 `scripts/install-agent-hooks.sh`。
+- 本地关卡（Stop hook、pre-commit）是快速反馈，不是保证：agent 可以修改它们。Stop hook 只检查未提交的改动；已提交的改动由 pre-commit 和 CI 检查。只有可信 CI 加上分支保护和代码负责人审批，才是真正跳不过的。
+- Stop hook 在你启用之前是关闭的：agent 写不了自己的 hook 配置。每个克隆需要你运行一次 `bash scripts/install-agent-hooks.sh`（先询问，再合并进已有配置）；`scripts/hook-status.sh` 显示哪些已启用，没启用时每次 commit 都会提醒。
 - AI 审核员不稳定（实测 10 次里漏了 1 次埋入的问题）。它的发现必须有证据才算数，确认的问题应该变成规则或测试。
 - Codex 的沙箱禁止启动浏览器，所以在 Codex 下冒烟流程放在 CI 里跑。
 - 实测规模很小（每组只跑一次）。详见 [docs/BENCHMARK.md](docs/BENCHMARK.md)（英文）。
@@ -260,12 +260,12 @@ Trust Pyramid 流程里需要运行时验证的地方，就用它生成的这个
 
 | 方面 | 加到项目里的文件 |
 |---|---|
-| 关卡 | `scripts/check.sh`、`scripts/stop-gate.sh`、`.githooks/pre-commit`、`.claude/settings.json`、`.codex/hooks.json` |
+| 关卡 | `scripts/check.sh`、`scripts/stop-gate.sh`、`.githooks/pre-commit`、`.claude/settings.json`（hook）、`.claude/settings.local.json`（禁止编辑列表，每台机器各自安装）、`.codex/hooks.json` |
 | Lint | `lint/`：项目专用插件（报错附改法）、违规和合规样例、证明每条规则会触发的测试 |
 | 验证 | `verify/app.mjs`（up/click/fill/snapshot/screenshot/errors）、`verify/smoke.mjs`、`verify/feature-map.md`、`verify/fake-openai.mjs` |
 | AI 审核员 | `quality/reviewer-prompt.md`、`.claude/agents/quality-reviewer.md`、`scripts/review-gate.mjs`、`quality/review-dispositions.json` |
 | 复利台账 | `quality/rule-candidates.md`、`quality/review-log.md` |
-| CI | `.github/workflows/quality.yml`、`.github/pull_request_template.md` |
+| CI | `.github/workflows/quality.yml`（装了对应层时再加 `quality-smoke.yml`、`quality-review.yml`）、`.github/pull_request_template.md` |
 | 文字 | 简短的 `AGENTS.md`（`CLAUDE.md` 里写 `@AGENTS.md`）、`docs/QUALITY.md` |
 
 所有内容都会按你的技术栈调整。内置了 TypeScript/React/Node/Firebase、Next.js + Postgres、

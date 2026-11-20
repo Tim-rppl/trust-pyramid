@@ -1,5 +1,6 @@
-# Changes to the quality gates need a human. Replace @OWNER with your GitHub username or team,
-# and enable "Require review from Code Owners" in branch protection.
+# Changes to the quality gates need a human. Replace @OWNER with your GitHub username or team.
+# Teams: enable "Require review from Code Owners" in branch protection. A single maintainer cannot
+# approve their own PR, so leave that off; this file still marks gate files in every PR.
 /scripts/                         @OWNER
 /lint/                            @OWNER
 /.githooks/                       @OWNER

@@ -34,7 +34,10 @@ Each restriction has a message that names the right place to put the code.
 
 Keep project rules in the repo (`lint/project-plugin.mjs`, start from `templates/lint/`; `.mjs` loads
 as ESM without a `"type": "module"` package.json). Run linters from the repo root: oxlint rejects
-paths containing `..`. Non-JS stacks: write rules for the stack's own linter or as a small AST
+paths containing `..`. Run oxlint through `lint/oxlint.mjs` (`node lint/oxlint.mjs -c .oxlintrc.json src`,
+or `runOxlint([...])` from a test): it starts oxlint with `node` itself, because spawning `npx` or a
+`.cmd` shim without a shell fails on Windows. In tests, never spawn `python3` by name either: on
+Windows it is often the Microsoft Store stub; try `python3`, `python`, then `py -3`. Non-JS stacks: write rules for the stack's own linter or as a small AST
 script (see the Python recipe), with the same fixtures-plus-test discipline.
 A rule is worth writing when a mistake (a) happened at least once, (b) can be detected from source
 text or AST, and (c) has a clear correct alternative.

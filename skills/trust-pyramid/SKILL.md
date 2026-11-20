@@ -67,6 +67,12 @@ UI languages, deployment target, areas involving money/permissions/privacy, exte
 (AI models, payments), the user's coding level, new vs existing project.
 Detect the host agent: Claude Code (`.claude/`, `CLAUDE.md`) or Codex (`.codex/`, `AGENTS.md`).
 If unsure, install gates for both. Propose a profile (lite unless the full criteria apply).
+Check what the hosting plan allows **before** building, and tell the user the result: branch
+protection and rulesets are not available for private repositories on GitHub Free
+(`gh repo view --json visibility`, then `gh api repos/<owner>/<repo>/branches/<default>/protection`;
+a 403 "Upgrade to GitHub Pro or make this repository public" means not available). Ask whether the
+project has one maintainer or a team. Both answers change the merge gate (`references/gates.md`,
+"Branch protection").
 
 ### Phase 1 - Plan (then stop for approval)
 
@@ -87,6 +93,11 @@ Read `references/layer-2-static.md`. Typecheck strict, boundary rules, a project
 unit tests for pure logic, property tests for money/quota/permission/time logic, database
 security-rule tests.
 
+Before enabling each new rule, run it on the whole repository and record the count of existing
+violations in `docs/QUALITY.md`. Zero: enable it everywhere. Otherwise fix them now if there are
+few, or enable it for new code only and record the baseline (count and files) in `quality/` so the
+backlog is tracked until it reaches zero (core rule 6, ratchet).
+
 ### Phase 4 - Layer 3: verification
 
 Read `references/layer-3-verification.md`. One-command local stack with isolated ports and seeded
@@ -96,13 +107,37 @@ OpenAI-compatible server (`templates/verify/fake-openai.mjs`) when the app calls
 ### Phase 5 - Gates
 
 Read `references/gates.md`. Install `scripts/check.sh`, the pre-commit hook, the Stop hook for
-each host agent, CI, branch protection instructions, and the PR template.
+each host agent, CI, branch protection instructions, and the PR template. Install
+`templates/gitattributes` first, and after copying the scripts run
+`git update-index --chmod=+x scripts/*.sh .githooks/*` (on Windows `chmod +x` does not reach the
+index, and Linux CI then fails with `Permission denied`).
 
 Agents usually cannot write their own host config (Claude Code protects `.claude/settings*.json`,
-Codex protects `.codex/`). Stage the hook configs in `quality/install/` (`claude-settings.json`,
-`codex-hooks.json`), install `scripts/install-agent-hooks.sh`, and ask the user to run it. Install
-the `permissions.deny` list for protected paths **last**, after every other edit: once it is in
-place the agent can no longer edit gate files (by design), so earlier installation locks it out.
+Codex protects `.codex/`), and neither host runs a hook that is not registered in its config: the
+Stop hook is OFF until the user enables it. Stage the hook configs in `quality/install/`
+(`claude-settings.json`, `claude-settings.local.json`, `codex-hooks.json`; stage Codex only if the
+user uses Codex), install `scripts/install-agent-hooks.sh` and `scripts/hook-status.sh`, and ask the
+user to run `bash scripts/install-agent-hooks.sh` in a terminal. It shows each change, asks, merges
+into existing config files (nothing is overwritten), and enables pre-commit. Then run
+`bash scripts/hook-status.sh` yourself: **do not continue past Phase 5 until it reports every gate
+enabled**, unless the user explicitly declines (record that in `docs/QUALITY.md`). In a project
+with a root `package.json`, add the `prepare` script from `references/gates.md` so `npm install`
+enables pre-commit in every clone. Tell the user to
+start a new agent session afterwards: hooks are read when a session starts. Stage the `permissions.deny` list for protected paths **last**, after every
+other edit: once it is in place the agent can no longer edit gate files (by design), so earlier
+installation locks it out.
+
+The deny list and the add-rule workflow need each other, so explain this model to the user: the
+deny list lives in `.claude/settings.local.json` (per machine, not committed) and stays on for
+normal feature work. Writing or changing a rule (`references/add-rule.md`) happens in a separate
+git worktree on its own branch, where that file does not exist, and reaches the default branch only
+through a PR that a human reviews (CODEOWNERS and trusted CI cover the gate paths).
+
+Ask whether the Stop hook should be shared with everyone who uses Claude Code on the project
+(committed in `.claude/settings.json`, the default) or enabled only on this machine
+(`.claude/settings.local.json`). For local only, stage a single `claude-settings.local.json` that
+holds both `hooks` and `permissions`, and no `claude-settings.json`. Tell the user what the hook
+covers: uncommitted changes only (fast feedback, not a guarantee); pre-commit and CI cover commits.
 
 ### Phase 6 - Layer 5: AI reviewer (enforced)
 
@@ -119,15 +154,28 @@ Write a short root `AGENTS.md` (Claude Code: `CLAUDE.md` containing `@AGENTS.md`
 
 1. Run every check and the smoke flow; all must pass. Then commit to the setup branch (or ask the
    user to) and run the checks again on a fresh clone of that commit: gates that only pass on an
-   uncommitted working tree are broken.
+   uncommitted working tree are broken. Check `git ls-files -s scripts .githooks`: every script and
+   hook must be `100755`, and `git ls-files --eol scripts .githooks` must show `i/lf`.
+   Run `bash scripts/hook-status.sh`: every gate must be enabled, and after the user has ended one
+   turn in a new session it must show when the Stop hook last ran (proof the host really runs it).
 2. Prove no check is vacuous: introduce one violation per check (lint rule, boundary, test,
    smoke step), confirm it fails, then restore. Restore from a backup or with an exact edit,
    never with `git checkout` on files that hold uncommitted work.
 3. Demo one small feature end to end: write a deliberately non-compliant version → gate blocks
-   it → fix from the error messages → verify in the running app with screenshots → run the
-   reviewer and confirm/reject findings with evidence → turn confirmed findings into rules →
-   commit. Record the real outputs in `docs/QUALITY.md`.
-4. Report to the user in plain language: what was installed, how each layer was proven, what is
+   it → **run the reviewer blind on that pre-fix commit first** (no hints about the known problems)
+   and record which of them it found on its own → fix from the error messages → verify in the
+   running app with screenshots → run the reviewer again and confirm/reject findings with
+   evidence → turn confirmed findings into rules → commit. Finish by removing the demo code unless
+   it is a real feature the user wants to keep (code is memory: agents copy what is left behind).
+   Record the real outputs, including the blind-review result, in `docs/QUALITY.md`.
+4. Prove CI blocks a recurrence. A new rule only takes effect in CI after it merges (CI uses the
+   base branch's rules), so the PR that adds it cannot show this. After the gates are on a base
+   branch (the default branch, or a throwaway base as in `references/gates.md`, "Bootstrap"),
+   open a throwaway probe PR based on it that reintroduces one mistake a rule catches, committed
+   with `--no-verify` only for this probe (the local gates would stop it otherwise). Expect the
+   CI `check` job to fail at the exact file:line, record the result, then close the PR and delete
+   its branch without merging.
+5. Report to the user in plain language: what was installed, how each layer was proven, what is
    still missing, and the one-time setup they must do themselves (secrets, branch protection).
 
 Commit to a new branch. Never push or deploy unless the user asks.
@@ -138,22 +186,27 @@ Commit to a new branch. Never push or deploy unless the user asks.
 |---|---|
 | `templates/scripts/check.sh` | `scripts/check.sh` (edit the `CHECKS` table) |
 | `templates/scripts/stop-gate.sh` | `scripts/stop-gate.sh` |
-| `templates/scripts/install-agent-hooks.sh` | `scripts/install-agent-hooks.sh` (the user runs it) |
-| `templates/claude/settings.json` | `.claude/settings.json` (merge if it exists) |
+| `templates/scripts/install-agent-hooks.sh` | `scripts/install-agent-hooks.sh` (the user runs it; asks, then merges) |
+| `templates/scripts/hook-status.sh` | `scripts/hook-status.sh` (is every gate on in this clone; pre-commit reminds until it is) |
+| `templates/claude/settings.json` | staged as `quality/install/claude-settings.json`; the installer merges it into `.claude/settings.json`: the Stop hook |
+| `templates/claude/settings.local.json` | `.claude/settings.local.json` (per machine): `permissions.deny` for gate files |
 | `templates/codex/hooks.json` | `.codex/hooks.json` |
 | `templates/githooks/pre-commit` | `.githooks/pre-commit` + `git config core.hooksPath .githooks` |
-| `templates/lint/` | `lint/` (oxlint/ESLint plugin, fixtures, fixture test) |
+| `templates/lint/` | `lint/` (oxlint/ESLint plugin, fixtures, fixture test, `oxlint.mjs` cross-platform runner) |
 | `templates/lint/python/` | `lint/` for Python projects (AST rule checker + fixtures) |
 | `templates/verify/` | `verify/` (CLI, config, smoke, feature map, fake model server) |
 | `templates/quality/` | `quality/` (reviewer prompt, review config, dispositions, ledgers) |
 | `templates/scripts/review-gate.mjs` | `scripts/review-gate.mjs` |
+| `templates/scripts/gate-log.sh`, `templates/scripts/gate-report.mjs` | `scripts/` (record what the gates block; weekly summary) |
 | `templates/scripts/trusted-check.sh`, `templates/scripts/no-suppressions.sh` | `scripts/` (CI uses the base branch's copies) |
 | `templates/quality/protected-paths.txt`, `templates/quality/allowed-suppressions.txt` | `quality/` (edit the list for the project) |
 | `templates/github/CODEOWNERS` | `.github/CODEOWNERS` (replace `@OWNER`) |
 | `templates/claude/agents/quality-reviewer.md` | `.claude/agents/quality-reviewer.md` |
-| `templates/github/` | `.github/` (workflow, PR template) |
+| `templates/github/` | `.github/` (PR template, and one workflow per installed layer: `templates/github/workflows/quality.yml` always, `templates/github/workflows/quality-smoke.yml` with `verify/`, `templates/github/workflows/quality-review.yml` with the reviewer and its API key) |
+| `templates/github-text/` (optional) | `scripts/check-github-text.mjs`, `.githooks/commit-msg`, `.github/workflows/github-text.yml`: PR text and commit messages in the project's language, no AI tool markers in PR descriptions (`references/gates.md`) |
 | `templates/AGENTS.md` | `AGENTS.md` (+ `CLAUDE.md` containing `@AGENTS.md`) |
 | `templates/gitignore-additions.txt` | append to `.gitignore` |
+| `templates/gitattributes` | append to `.gitattributes` (LF line endings for gate files on Windows) |
 
 Adapt every template to the stack; remove example rules that do not apply. Templates are
 JavaScript/Node because the verification tooling (Playwright) is; for non-Node stacks keep
@@ -163,13 +216,19 @@ JavaScript/Node because the verification tooling (Playwright) is; for non-Node s
 
 - **A mistake happened twice** → follow `references/add-rule.md`.
 - **Before a PR** → CI runs the reviewer; in the full profile also run it locally (`references/layer-5-ai-reviewer.md`).
-- **Weekly sweep** → run the reviewer over the whole repo to collect rule candidates.
+- **Weekly sweep** → run the reviewer over one risk area at a time to collect rule candidates; estimate
+  the token cost from the line count first and tell the user (`references/layer-5-ai-reviewer.md`, "Sweeps").
+- **Do the gates pay for themselves?** → `node scripts/gate-report.mjs --rules <rule IDs>` summarizes
+  `.quality-state/gate-log.jsonl` per week: blocks per gate and rule, rules that keep coming back
+  (improve the message or design the mistake away), rules that never fired. Show it to the user.
 - **New feature** → check passes, verify in the running app, update feature map + smoke, attach evidence.
 
 ## Running environment
 
-- Tell the user the cost up front: a full setup on an existing app took ~30 minutes and the
-  equivalent of $7-19 of model usage (Claude) or ~10M tokens (Codex) in testing.
+- Tell the user the cost up front, with its source: in the benchmark (`docs/BENCHMARK.md`: a
+  mid-size Remix app, Claude Code 2.1 and Codex CLI 0.169, November 2026) a setup took 24-32 minutes
+  and about $6.5 of model usage with Claude Code, or about 8.5M tokens with Codex. Larger or
+  multi-package projects cost more; say so rather than promising the benchmark figure.
 - No display: never install or launch Cypress or desktop browsers. Headless Playwright is enough.
 - Codex's sandbox blocks launching browsers; run the smoke flow outside the sandbox or leave it to CI.
 - On small machines (8 GB RAM), run one heavy job at a time.

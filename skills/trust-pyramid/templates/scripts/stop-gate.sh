@@ -7,16 +7,25 @@
 # to the user", then let the turn end with a visible systemMessage. No loops, no silent hand-over.
 # A failure the agent cannot fix (a protected gate file) should be handed over at once, not retried.
 [ -t 0 ] || cat >/dev/null  # hook input JSON on stdin is not needed
-cd "$(git rev-parse --show-toplevel)" || { echo '{}'; exit 0; }
+# Find the repository from this script's location, not the current directory: the agent may have
+# changed directory, or the host may start hooks elsewhere. If it cannot be found, say so visibly
+# (systemMessage) and let the turn end: blocking (exit 2) would loop, because the agent cannot fix it.
+root=$(git -C "$(dirname "${BASH_SOURCE[0]}")/.." rev-parse --show-toplevel 2>/dev/null) && cd "$root" || {
+  msg="stop-gate: cannot find the repository from $0, so the quality checks did not run. Run scripts/check.sh in the repository."
+  echo "$msg" >&2
+  printf '{"systemMessage": "%s"}\n' "$(printf '%s' "$msg" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+  exit 0; }
 
 state_dir=.quality-state
 counter=$state_dir/stop-gate-count
 handover=$state_dir/stop-gate-handover
 mkdir -p "$state_dir"
+# Proof that the host really runs this hook; scripts/hook-status.sh shows it.
+date '+%Y-%m-%d %H:%M:%S' > "$state_dir/stop-gate-last-run"
 
 max_attempts=${STOP_GATE_MAX_ATTEMPTS:-2}
 
-if output=$(scripts/check.sh --fast 2>&1); then
+if output=$(TRUST_GATE=stop-hook bash scripts/check.sh --fast 2>&1); then
   rm -f "$counter" "$handover"
   echo '{}'
   exit 0

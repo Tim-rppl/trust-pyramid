@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased
+
+Fixes from installing the skill on a real project on Windows 11 (issues #1-#15).
+
+- **First install works on Windows:** LF line endings via `.gitattributes` (this repo and a template
+  for installed projects); scripts called through `bash` and committed as `100755`; oxlint run
+  through `node` (`lint/oxlint.mjs`); Python tests fall back to `python` / `py -3`; CI also runs on
+  `windows-latest`.
+- **Gates:** `no-suppressions.sh` no longer flags itself; the Stop hook finds the repository from
+  its own location; when it cannot, it says so in a visible `systemMessage` instead of blocking in a
+  loop (the Codex hook command also works from subfolders and no longer fails with exit 127 outside a
+  repository); the PR that introduces the gates gets a labelled
+  "Gate bootstrap" result instead of exit code 128; trusted-check uses the base branch's npm
+  `scripts`; gate interceptions are logged (`scripts/gate-log.sh`, `scripts/gate-report.mjs`).
+- **The Stop hook is enabled, not just staged:** `install-agent-hooks.sh` asks, then merges into
+  existing `.claude/settings.json`, `.claude/settings.local.json` and `.codex/hooks.json` (it used
+  to skip any file that existed, so the hook stayed off) and enables pre-commit.
+  `scripts/hook-status.sh` reports what is on and when the Stop hook last ran; setup does not pass
+  Phase 5 until it is clean; pre-commit reminds on every commit while the hook is off. For a user
+  who never ran the installer: `AGENTS.md` tells the agent to run `hook-status.sh` at the start of
+  each session and explain how to enable the gates, and JS projects get a `prepare` script so
+  `npm install` enables pre-commit.
+- **Setup:** branch protection availability and team size are checked in Phase 0 (GitHub Free
+  private repos, solo maintainers); CI is split per layer (`quality.yml`, `quality-smoke.yml`,
+  `quality-review.yml`); the deny list is per machine and rules are written in a separate worktree;
+  Phase 8 adds a blind review, a recurrence probe PR, violation counts and demo cleanup.
+- **Docs:** one sourced set of cost figures; the Stop hook's scope; reviewer sweep cost estimates.
+- **Optional rule pack:** `templates/github-text/` checks the language of PR text and commit
+  messages and keeps AI tool markers out of PR descriptions.
+
 ## 0.3.0 - 2026-11-21
 
 Results of a field benchmark with real Claude Code and Codex runs (see docs/BENCHMARK.md).

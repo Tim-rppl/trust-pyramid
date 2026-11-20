@@ -1,0 +1,13 @@
+# Trust Pyramid: append to .gitattributes (create it if missing).
+# Gate scripts, hooks and rules must keep LF line endings on Windows too (core.autocrlf=true would
+# check them out as CRLF, and bash cannot run a script with CRLF line endings).
+# Directories use text=auto so binary files (images, fixtures) are left alone.
+*.sh          text eol=lf
+/.githooks/*  text eol=lf
+/scripts/**   text=auto eol=lf
+/lint/**      text=auto eol=lf
+/quality/**   text=auto eol=lf
+/verify/**    text=auto eol=lf
+/.github/**   text=auto eol=lf
+/.claude/**   text=auto eol=lf
+/.codex/**    text=auto eol=lf

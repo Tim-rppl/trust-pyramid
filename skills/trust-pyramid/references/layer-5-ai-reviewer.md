@@ -103,8 +103,23 @@ so committing dispositions does not trigger a new review; changing code does.
 
 ## Sweeps
 
-Weekly or per milestone, run the reviewer over the whole repo (`proof` may be "pattern seen N
+Weekly or per milestone, run the reviewer over a scope of the repo (`proof` may be "pattern seen N
 times"). Goal: rank rule candidates, not fix everything now.
+
+**Estimate the cost first and tell the user.** Count the lines in scope
+(`git ls-files -- <paths> | xargs wc -l | tail -1`) and estimate about 25 tokens per line. Observed
+on a real project: one sweep of about 10k lines (server code, security rules, client services) used
+about 250k tokens and 43 tool calls. Ask before a sweep that would exceed the user's budget.
+
+**Scope by risk, and repeat what matters.** Sweep money, permissions and personal data first, one
+area per run, rather than the whole repo at once. One run says little about stability: the same
+sweep found three real problems the author had not seen and missed two known ones in the same
+scope. When the result matters, run the same scope two or three times (ideally with a different
+model or a fresh session) and merge the findings.
+
+**Record every run** in `quality/review-log.md`: scope, files read, tokens (or cost), findings and
+their dispositions, and any known problem in scope that was missed. Over time this shows the
+reviewer's recall per area and whether repeated runs are worth their cost.
 
 ## Plain-language summary for the human
 

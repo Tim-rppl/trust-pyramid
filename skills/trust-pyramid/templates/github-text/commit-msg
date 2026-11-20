@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Optional rule pack (templates/github-text/): commit messages follow scripts/check-github-text.mjs.
+# Enabled together with pre-commit: git config core.hooksPath .githooks
+if ! node scripts/check-github-text.mjs --message "$1"; then
+  echo
+  echo "Commit blocked: reword the message (see above). Do not bypass with --no-verify."
+  exit 1
+fi

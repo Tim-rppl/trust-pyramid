@@ -3,3 +3,5 @@ verify/.state/
 verify/node_modules/
 .quality-state/
 .ai-review/
+.claude/*.json.bak
+.codex/*.json.bak

@@ -66,7 +66,7 @@ The gates make sure every layer actually runs:
 |---|---|---|
 | Agent tries to finish | Stop hook (Claude Code and Codex, one script) | Hard, but an agent can edit local hook files - fast feedback, not the guarantee |
 | `git commit` | pre-commit hook | Only with `--no-verify` |
-| Pull request | CI: checks, smoke, AI review, review gate - using the **base branch's** gate files | **No** - with branch protection and code owners |
+| Pull request | CI: checks, smoke, AI review, review gate - using the **base branch's** gate files | **No** - with branch protection (advisory on private GitHub Free repos, which have none) |
 | Merge | Your approval, based on evidence | It is your call |
 
 ## What we measured
@@ -101,7 +101,7 @@ Choose **full** for smaller or cheaper coding models, many contributors, or high
 
 | Step | Uses model tokens? | Measured / expected |
 |---|---|---|
-| One-time setup by the agent | yes | 25-30 min; ~$6.5 with Claude, ~8.5M tokens with Codex, on a mid-size Remix app |
+| One-time setup by the agent | yes | 24-32 min; ~$6.5 with Claude Code, ~8.5M tokens with Codex, on a mid-size Remix app ([benchmark](docs/BENCHMARK.md), November 2026); larger projects cost more |
 | Lint, typecheck, tests, Stop hook, pre-commit, trusted CI | **no** - scripts | free |
 | Agent fixing what a gate rejected | yes | nothing when the code is right; a round or two otherwise (Stop hook gives up after 2) |
 | AI reviewer, once per PR in CI | yes | ~$0.7 for a small diff, plus the agent's fixes if it finds something |
@@ -121,8 +121,11 @@ who cannot read code but need agents they can trust.
 
 **Known limits.**
 - Local gates (Stop hook, pre-commit) are fast feedback, not a guarantee: an agent can edit them.
+  The Stop hook checks only uncommitted changes; committed work is checked by pre-commit and CI.
   Only trusted CI with branch protection and code owners is unskippable.
-- Agents cannot install their own hook configs; you run `scripts/install-agent-hooks.sh` once.
+- The Stop hook is off until you enable it: agents cannot write their own hook configs. Run
+  `bash scripts/install-agent-hooks.sh` once per clone (it asks, then merges into existing settings);
+  `scripts/hook-status.sh` shows what is on, and every commit reminds you while it is not.
 - The AI reviewer is not deterministic (it missed a planted bug in 1 of 10 runs). Its findings count
   only with evidence, and confirmed ones should become rules or tests.
 - Codex's sandbox blocks launching browsers, so the smoke flow runs in CI there.
@@ -285,12 +288,12 @@ it into a rule, then record dispositions in quality/review-dispositions.json.
 
 | Area | Files added to your project |
 |---|---|
-| Gates | `scripts/check.sh`, `scripts/stop-gate.sh`, `.githooks/pre-commit`, `.claude/settings.json`, `.codex/hooks.json` |
+| Gates | `scripts/check.sh`, `scripts/stop-gate.sh`, `.githooks/pre-commit`, `.claude/settings.json` (hook), `.claude/settings.local.json` (deny list, per machine), `.codex/hooks.json` |
 | Lint | `lint/` - a project plugin with fix-it messages, fixtures, and a test that proves each rule fires |
 | Verification | `verify/app.mjs` (up/click/fill/snapshot/screenshot/errors), `verify/smoke.mjs`, `verify/feature-map.md`, `verify/fake-openai.mjs` |
 | AI reviewer | `quality/reviewer-prompt.md`, `.claude/agents/quality-reviewer.md`, `scripts/review-gate.mjs`, `quality/review-dispositions.json` |
 | Ratchet ledger | `quality/rule-candidates.md`, `quality/review-log.md` |
-| CI | `.github/workflows/quality.yml`, `.github/pull_request_template.md` |
+| CI | `.github/workflows/quality.yml` (+ `quality-smoke.yml`, `quality-review.yml` when those layers are installed), `.github/pull_request_template.md` |
 | Prose | a short `AGENTS.md` (and `CLAUDE.md` → `@AGENTS.md`), `docs/QUALITY.md` |
 
 Everything is adapted to your stack. Recipes are included for TypeScript/React/Node/Firebase,
