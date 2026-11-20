@@ -16,4 +16,4 @@ install_one quality/install/claude-settings.json .claude/settings.json
 install_one quality/install/codex-hooks.json .codex/hooks.json
 echo
 echo "Next: Codex asks you to review and trust new project hooks once. Then check the hook works:"
-echo "  echo '{}' | scripts/stop-gate.sh   # expect {} when checks pass"
+echo "  echo '{}' | bash scripts/stop-gate.sh   # expect {} when checks pass"

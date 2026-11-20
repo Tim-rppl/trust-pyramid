@@ -19,7 +19,7 @@ function project() {
   for (const file of ['scripts/check.sh', 'scripts/trusted-check.sh', 'scripts/no-suppressions.sh', 'quality/allowed-suppressions.txt']) copyTemplate(file, dir);
   const check = join(dir, 'scripts/check.sh');
   writeFileSync(check, readFileSync(check, 'utf8').replace(/CHECKS=\([\s\S]*?\n\)/,
-    'CHECKS=(\n  "src/ lint.sh lint.conf|lint|bash lint.sh"\n  ".|no new suppression comments|scripts/no-suppressions.sh"\n)'));
+    'CHECKS=(\n  "src/ lint.sh lint.conf|lint|bash lint.sh"\n  ".|no new suppression comments|bash scripts/no-suppressions.sh"\n)'));
   git('add', '-A');
   git('commit', '-q', '-m', 'base with gates');
   git('branch', 'base');

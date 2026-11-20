@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 import { ROOT, SKILL, copyTemplate, tempRepo } from './helpers.mjs';
@@ -44,10 +44,13 @@ test('Codex metadata and Claude plugin manifests are present and consistent', ()
   assert.ok(!/^(claude|anthropic)/.test(plugin.name));
 });
 
-test('shell templates are executable', () => {
-  for (const path of ['templates/scripts/check.sh', 'templates/scripts/stop-gate.sh', 'templates/scripts/install-agent-hooks.sh', 'templates/scripts/trusted-check.sh', 'templates/scripts/no-suppressions.sh', 'templates/githooks/pre-commit']) {
-    assert.ok(statSync(join(SKILL, path)).mode & 0o111, `${path} must be executable`);
-  }
+test('shell templates are executable in the git index', () => {
+  // The index mode is what a clone gets. The file system mode says nothing on Windows (core.fileMode=false).
+  const paths = ['scripts/check.sh', 'scripts/stop-gate.sh', 'scripts/install-agent-hooks.sh', 'scripts/trusted-check.sh', 'scripts/no-suppressions.sh', 'githooks/pre-commit']
+    .map(path => `skills/trust-pyramid/templates/${path}`);
+  const modes = execFileSync('git', ['ls-files', '-s', '--', ...paths], { cwd: ROOT, encoding: 'utf8' }).trim().split('\n');
+  assert.equal(modes.length, paths.length, 'every shell template is tracked');
+  for (const line of modes) assert.match(line, /^100755 /, `${line.split('\t')[1]} must be committed as 100755`);
 });
 
 test('CI never executes gate files from the PR checkout', () => {

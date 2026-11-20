@@ -4,12 +4,12 @@
 # the PR's own copies, deleting a check or turning a rule off would pass. This script restores every
 # protected path from the base commit before running the checks, so loosening a rule never takes
 # effect in the PR that loosens it. New or stricter rules take effect after they merge.
-#   scripts/trusted-check.sh <base-ref> [command...]     default command: scripts/check.sh --all
+#   scripts/trusted-check.sh <base-ref> [command...]     default command: bash scripts/check.sh --all
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
 base=${1:?usage: scripts/trusted-check.sh <base-ref> [command...]}
 shift
-[[ $# -gt 0 ]] || set -- scripts/check.sh --all
+[[ $# -gt 0 ]] || set -- bash scripts/check.sh --all
 
 # The list itself comes from the base commit, so a PR cannot shrink it.
 protected=$(git show "$base:quality/protected-paths.txt" 2>/dev/null | grep -vE '^\s*(#|$)')
@@ -35,5 +35,5 @@ fi
 
 status=0
 "$@" || status=1
-scripts/no-suppressions.sh "$base" || status=1
+bash scripts/no-suppressions.sh "$base" || status=1
 exit $status

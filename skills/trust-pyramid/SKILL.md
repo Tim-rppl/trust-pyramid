@@ -96,7 +96,10 @@ OpenAI-compatible server (`templates/verify/fake-openai.mjs`) when the app calls
 ### Phase 5 - Gates
 
 Read `references/gates.md`. Install `scripts/check.sh`, the pre-commit hook, the Stop hook for
-each host agent, CI, branch protection instructions, and the PR template.
+each host agent, CI, branch protection instructions, and the PR template. Install
+`templates/gitattributes` first, and after copying the scripts run
+`git update-index --chmod=+x scripts/*.sh .githooks/*` (on Windows `chmod +x` does not reach the
+index, and Linux CI then fails with `Permission denied`).
 
 Agents usually cannot write their own host config (Claude Code protects `.claude/settings*.json`,
 Codex protects `.codex/`). Stage the hook configs in `quality/install/` (`claude-settings.json`,
@@ -119,7 +122,8 @@ Write a short root `AGENTS.md` (Claude Code: `CLAUDE.md` containing `@AGENTS.md`
 
 1. Run every check and the smoke flow; all must pass. Then commit to the setup branch (or ask the
    user to) and run the checks again on a fresh clone of that commit: gates that only pass on an
-   uncommitted working tree are broken.
+   uncommitted working tree are broken. Check `git ls-files -s scripts .githooks`: every script and
+   hook must be `100755`, and `git ls-files --eol scripts .githooks` must show `i/lf`.
 2. Prove no check is vacuous: introduce one violation per check (lint rule, boundary, test,
    smoke step), confirm it fails, then restore. Restore from a backup or with an exact edit,
    never with `git checkout` on files that hold uncommitted work.

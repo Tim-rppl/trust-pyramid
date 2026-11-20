@@ -1,7 +1,7 @@
 // check.sh, stop-gate.sh and pre-commit behave as documented in references/gates.md.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 import { copyTemplate, tempRepo, writeFiles } from './helpers.mjs';
@@ -113,4 +113,30 @@ test('STOP_GATE_MAX_ATTEMPTS changes the cap', () => {
   assert.match(first.stderr, /attempt 1 of 1/);
   const second = spawnSync('bash', ['-c', 'scripts/stop-gate.sh'], { cwd: dir, encoding: 'utf8', input: '{}', env: { ...process.env, STOP_GATE_MAX_ATTEMPTS: '1' } });
   assert.match(second.stderr, /Stop trying to fix them now/);
+});
+
+test('gates still run when the scripts were committed without the executable bit (setup from Windows)', () => {
+  const { dir, git } = repoWithChecks();
+  const check = join(dir, 'scripts/check.sh');
+  writeFileSync(check, readFileSync(check, 'utf8').replace('"app/|app: slow suite|bash app/slow.sh"',
+    '"app/|app: slow suite|bash app/slow.sh"\n  ".|no new suppression comments|bash scripts/no-suppressions.sh|fast"'));
+  copyTemplate('scripts/no-suppressions.sh', dir);
+  copyTemplate('scripts/trusted-check.sh', dir);
+  writeFiles(dir, { 'quality/protected-paths.txt': 'scripts/\n' });
+  const scripts = ['scripts/check.sh', 'scripts/stop-gate.sh', 'scripts/no-suppressions.sh', 'scripts/trusted-check.sh'];
+  for (const path of scripts) chmodSync(join(dir, path), 0o644);
+  git('add', '-A');
+  git('update-index', '--chmod=-x', ...scripts);
+  git('commit', '-q', '-m', 'gates as 100644', '--no-verify');
+  assert.match(git('ls-files', '-s', 'scripts/check.sh'), /^100644 /);
+
+  assert.deepEqual(JSON.parse(run(dir, 'bash scripts/stop-gate.sh').stdout), {});
+  writeFiles(dir, { 'app/value.txt': 'broken\n' });
+  const stop = run(dir, 'bash scripts/stop-gate.sh');
+  assert.equal(stop.status, 2);
+  assert.doesNotMatch(stop.stderr, /Permission denied/);
+  assert.match(stop.stderr, /not ok - value/);
+  const trusted = run(dir, 'bash scripts/trusted-check.sh HEAD');
+  assert.doesNotMatch(trusted.stdout + trusted.stderr, /Permission denied/);
+  assert.match(trusted.stdout, /✓ no new suppression comments/);
 });

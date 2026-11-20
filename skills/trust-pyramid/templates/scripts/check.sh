@@ -18,7 +18,7 @@ CHECKS=(
   "web/ shared/|web: unit tests|npm --prefix web run --silent test"
   "server/ shared/|server: typecheck + lint|npm --prefix server run --silent lint|fast"
   "server/ shared/|server: unit tests|npm --prefix server run --silent test"
-  ".|no new suppression comments|scripts/no-suppressions.sh|fast"
+  ".|no new suppression comments|bash scripts/no-suppressions.sh|fast"
   # Python example:
   # "app/ tests/ lint/ pyproject.toml|python: ruff + mypy|.venv/bin/ruff check . && .venv/bin/mypy --strict app"
   # "app/ tests/ pyproject.toml|python: tests|.venv/bin/pytest -q -rf --tb=short"

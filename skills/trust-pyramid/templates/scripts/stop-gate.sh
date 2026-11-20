@@ -16,7 +16,7 @@ mkdir -p "$state_dir"
 
 max_attempts=${STOP_GATE_MAX_ATTEMPTS:-2}
 
-if output=$(scripts/check.sh --fast 2>&1); then
+if output=$(bash scripts/check.sh --fast 2>&1); then
   rm -f "$counter" "$handover"
   echo '{}'
   exit 0

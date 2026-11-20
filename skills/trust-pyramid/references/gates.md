@@ -34,7 +34,21 @@ hooks fall to the same tricks. Three defenses, all installed by this skill:
 Local gates (Stop hook, pre-commit) are for fast feedback and can be defeated by an agent that
 edits them; only trusted CI with branch protection is unskippable. Say this plainly to the user.
 
-## Line endings (Windows)
+## Windows: line endings and the executable bit
+
+**Executable bit.** Git for Windows runs with `core.fileMode=false`, so `chmod +x` never reaches the
+index and the scripts are committed as `100644`. Linux CI and macOS/Linux clones then fail with
+`Permission denied` wherever a script is run directly, and git skips a `.githooks/pre-commit`
+without the bit. The templates call every script through `bash <script>` so the mode matters less,
+but git itself runs hooks directly. After copying the templates, on every OS:
+
+```bash
+git add scripts .githooks
+git update-index --chmod=+x scripts/*.sh .githooks/*
+git ls-files -s scripts .githooks   # every *.sh and hook must show 100755
+```
+
+**Line endings.**
 
 Git for Windows defaults to `core.autocrlf=true`, which checks text files out with CRLF line
 endings. bash cannot run a CRLF script, and hooks copied from a CRLF checkout carry CRLF too.
