@@ -285,7 +285,7 @@ it into a rule, then record dispositions in quality/review-dispositions.json.
 
 | Area | Files added to your project |
 |---|---|
-| Gates | `scripts/check.sh`, `scripts/stop-gate.sh`, `.githooks/pre-commit`, `.claude/settings.json`, `.codex/hooks.json` |
+| Gates | `scripts/check.sh`, `scripts/stop-gate.sh`, `.githooks/pre-commit`, `.claude/settings.json` (hook), `.claude/settings.local.json` (deny list, per machine), `.codex/hooks.json` |
 | Lint | `lint/` - a project plugin with fix-it messages, fixtures, and a test that proves each rule fires |
 | Verification | `verify/app.mjs` (up/click/fill/snapshot/screenshot/errors), `verify/smoke.mjs`, `verify/feature-map.md`, `verify/fake-openai.mjs` |
 | AI reviewer | `quality/reviewer-prompt.md`, `.claude/agents/quality-reviewer.md`, `scripts/review-gate.mjs`, `quality/review-dispositions.json` |

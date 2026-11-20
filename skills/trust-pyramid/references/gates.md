@@ -27,9 +27,10 @@ hooks fall to the same tricks. Three defenses, all installed by this skill:
    `eslint-disable`, `@ts-ignore`, `# noqa`, `# type: ignore` and similar. Exceptions go into
    `quality/allowed-suppressions.txt`, which is protected.
 3. **Humans own the gate files** - `.github/CODEOWNERS` lists the protected paths; enable "Require
-   review from Code Owners". Claude Code's `permissions.deny` in `.claude/settings.json` blocks the
-   agent's edit tools on those paths (friction only: shell commands can still change files, which is
-   why 1 and 2 exist).
+   review from Code Owners". Claude Code's `permissions.deny` in `.claude/settings.local.json` blocks
+   the agent's edit tools on those paths (friction only: shell commands can still change files, which
+   is why 1 and 2 exist). It is per machine on purpose: rule-writing sessions run in a separate git
+   worktree where the file is absent (see "Changing gate files" below).
 
 Local gates (Stop hook, pre-commit) are for fast feedback and can be defeated by an agent that
 edits them; only trusted CI with branch protection is unskippable. Say this plainly to the user.
@@ -97,7 +98,9 @@ when the package manager supports it.
 Registration (staged by the agent, installed by the user with `scripts/install-agent-hooks.sh`,
 because each agent protects its own config folder; in testing, Claude could not write
 `.claude/settings.json` and Codex could not write `.codex/`):
-- Claude Code: `templates/claude/settings.json` → `quality/install/claude-settings.json` → `.claude/settings.json`.
+- Claude Code: `templates/claude/settings.json` → `quality/install/claude-settings.json` → `.claude/settings.json`
+  (the hook), and `templates/claude/settings.local.json` → `quality/install/claude-settings.local.json` →
+  `.claude/settings.local.json` (the deny list).
 - Codex: `templates/codex/hooks.json` → `quality/install/codex-hooks.json` → `.codex/hooks.json`.
   Codex only loads project hooks from trusted projects and asks the user to review and trust new or
   changed hooks; tell the user to approve it once.
@@ -159,6 +162,23 @@ fallback:
 - revisit when the repository becomes public or the plan changes.
 
 Explain to the user in plain language which of these applies and what it means.
+
+## Changing gate files (new rules) without switching the deny list off
+
+The deny list keeps the agent away from `lint/`, `scripts/` and the other gate files during feature
+work, and `references/add-rule.md` asks the agent to write rules there. Both hold with one model:
+
+1. Feature work happens in the main checkout, where `.claude/settings.local.json` denies edits to
+   gate files.
+2. A rule change happens in a separate worktree:
+   `git worktree add ../<repo>-rule-<name> -b rule/<name>`, then start the agent there. The deny list
+   is per machine and not committed, so it is absent in the new worktree (do not list it in a
+   `.worktreeinclude` file). The agent writes the rule, fixtures and test, runs `scripts/check.sh`,
+   commits and opens a PR.
+3. A human reviews and merges that PR (CODEOWNERS marks the gate paths; trusted CI checks it with
+   the base branch's rules). The new rule applies to every PR after the merge.
+
+Nothing is switched off in the main checkout, and the gate change gets a human review.
 
 ## PR template
 

@@ -109,9 +109,16 @@ index, and Linux CI then fails with `Permission denied`).
 
 Agents usually cannot write their own host config (Claude Code protects `.claude/settings*.json`,
 Codex protects `.codex/`). Stage the hook configs in `quality/install/` (`claude-settings.json`,
-`codex-hooks.json`), install `scripts/install-agent-hooks.sh`, and ask the user to run it. Install
-the `permissions.deny` list for protected paths **last**, after every other edit: once it is in
-place the agent can no longer edit gate files (by design), so earlier installation locks it out.
+`claude-settings.local.json`, `codex-hooks.json`), install `scripts/install-agent-hooks.sh`, and
+ask the user to run it. Stage the `permissions.deny` list for protected paths **last**, after every
+other edit: once it is in place the agent can no longer edit gate files (by design), so earlier
+installation locks it out.
+
+The deny list and the add-rule workflow need each other, so explain this model to the user: the
+deny list lives in `.claude/settings.local.json` (per machine, not committed) and stays on for
+normal feature work. Writing or changing a rule (`references/add-rule.md`) happens in a separate
+git worktree on its own branch, where that file does not exist, and reaches the default branch only
+through a PR that a human reviews (CODEOWNERS and trusted CI cover the gate paths).
 
 ### Phase 6 - Layer 5: AI reviewer (enforced)
 
@@ -149,7 +156,8 @@ Commit to a new branch. Never push or deploy unless the user asks.
 | `templates/scripts/check.sh` | `scripts/check.sh` (edit the `CHECKS` table) |
 | `templates/scripts/stop-gate.sh` | `scripts/stop-gate.sh` |
 | `templates/scripts/install-agent-hooks.sh` | `scripts/install-agent-hooks.sh` (the user runs it) |
-| `templates/claude/settings.json` | `.claude/settings.json` (merge if it exists) |
+| `templates/claude/settings.json` | `.claude/settings.json` (merge if it exists): the Stop hook |
+| `templates/claude/settings.local.json` | `.claude/settings.local.json` (per machine): `permissions.deny` for gate files |
 | `templates/codex/hooks.json` | `.codex/hooks.json` |
 | `templates/githooks/pre-commit` | `.githooks/pre-commit` + `git config core.hooksPath .githooks` |
 | `templates/lint/` | `lint/` (oxlint/ESLint plugin, fixtures, fixture test, `oxlint.mjs` cross-platform runner) |

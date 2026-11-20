@@ -85,11 +85,12 @@ test('pre-commit blocks a commit whose staged files fail the checks', () => {
 });
 
 test('install-agent-hooks installs staged hook configs and never overwrites existing ones', () => {
-  const { dir } = tempRepo({ 'quality/install/claude-settings.json': '{"hooks":{}}\n', 'quality/install/codex-hooks.json': '{"hooks":{}}\n', '.codex/hooks.json': '{"mine":true}\n' });
+  const { dir } = tempRepo({ 'quality/install/claude-settings.json': '{"hooks":{}}\n', 'quality/install/claude-settings.local.json': '{"permissions":{}}\n', 'quality/install/codex-hooks.json': '{"hooks":{}}\n', '.codex/hooks.json': '{"mine":true}\n' });
   copyTemplate('scripts/install-agent-hooks.sh', dir);
   const result = spawnSync('bash', ['scripts/install-agent-hooks.sh'], { cwd: dir, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /installed: \.claude\/settings\.json/);
+  assert.match(result.stdout, /installed: \.claude\/settings\.local\.json/);
   assert.match(result.stdout, /exists, not overwritten: \.codex\/hooks\.json/);
   assert.equal(readFileSync(join(dir, '.codex/hooks.json'), 'utf8'), '{"mine":true}\n');
 });

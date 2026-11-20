@@ -260,7 +260,7 @@ Trust Pyramid 流程里需要运行时验证的地方，就用它生成的这个
 
 | 方面 | 加到项目里的文件 |
 |---|---|
-| 关卡 | `scripts/check.sh`、`scripts/stop-gate.sh`、`.githooks/pre-commit`、`.claude/settings.json`、`.codex/hooks.json` |
+| 关卡 | `scripts/check.sh`、`scripts/stop-gate.sh`、`.githooks/pre-commit`、`.claude/settings.json`（hook）、`.claude/settings.local.json`（禁止编辑列表，每台机器各自安装）、`.codex/hooks.json` |
 | Lint | `lint/`：项目专用插件（报错附改法）、违规和合规样例、证明每条规则会触发的测试 |
 | 验证 | `verify/app.mjs`（up/click/fill/snapshot/screenshot/errors）、`verify/smoke.mjs`、`verify/feature-map.md`、`verify/fake-openai.mjs` |
 | AI 审核员 | `quality/reviewer-prompt.md`、`.claude/agents/quality-reviewer.md`、`scripts/review-gate.mjs`、`quality/review-dispositions.json` |

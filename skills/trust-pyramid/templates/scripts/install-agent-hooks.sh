@@ -13,7 +13,10 @@ install_one() {
   echo "installed: $to"
 }
 install_one quality/install/claude-settings.json .claude/settings.json
+install_one quality/install/claude-settings.local.json .claude/settings.local.json
 install_one quality/install/codex-hooks.json .codex/hooks.json
 echo
 echo "Next: Codex asks you to review and trust new project hooks once. Then check the hook works:"
 echo "  echo '{}' | bash scripts/stop-gate.sh   # expect {} when checks pass"
+echo "To change gate files (a new lint rule), work in a separate git worktree: the per-machine deny list in"
+echo ".claude/settings.local.json is not there, and the change reaches main only through a reviewed PR."

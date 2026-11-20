@@ -106,3 +106,15 @@ test('CI is split per layer: the always-installed workflow needs neither verify/
   assert.match(prompt, /verify\/feature-map\.md` \(only when `verify\/` is installed\)/);
   assert.match(prompt, /AGENTS\.md.*sub-packages/);
 });
+
+test('the deny list is per machine, so a rule-writing worktree is not locked out of lint/', () => {
+  const read = path => JSON.parse(readFileSync(join(SKILL, 'templates', path), 'utf8'));
+  const shared = read('claude/settings.json');
+  assert.equal(shared.permissions, undefined, 'the committed settings must not lock gate files for every checkout');
+  assert.ok(shared.hooks.Stop);
+  const local = read('claude/settings.local.json');
+  for (const path of ['/lint/**', '/scripts/**', '/.github/**']) assert.ok(local.permissions.deny.includes(`Edit(${path})`), path);
+  const addRule = readFileSync(join(SKILL, 'references/add-rule.md'), 'utf8');
+  assert.match(addRule, /git worktree add/);
+  assert.match(readFileSync(join(SKILL, 'references/gates.md'), 'utf8'), /## Changing gate files/);
+});
