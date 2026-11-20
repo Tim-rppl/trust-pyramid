@@ -1,0 +1,8 @@
+{
+  "plugins": ["typescript"],
+  "jsPlugins": ["../project-plugin.mjs"],
+  "rules": {
+    "project/no-timing-patch": "error",
+    "project/no-raw-ui-text": "error"
+  }
+}

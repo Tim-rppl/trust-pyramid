@@ -1,0 +1,11 @@
+{
+  "name": "trust-pyramid",
+  "owner": { "name": "Tim-rppl" },
+  "plugins": [
+    {
+      "name": "trust-pyramid",
+      "source": "./",
+      "description": "Quality gates where coding agents prove their own work."
+    }
+  ]
+}

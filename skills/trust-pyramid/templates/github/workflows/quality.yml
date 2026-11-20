@@ -1,0 +1,120 @@
+# Trust Pyramid quality gates. Make `check`, `smoke` and `review-gate` required status checks
+# (Settings -> Branches -> branch protection for main) so nothing merges without them.
+name: quality
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22 }
+      # TODO(trust-pyramid): install dependencies for every package listed in scripts/check.sh
+      - run: npm ci --prefix web && npm ci --prefix server
+      - run: scripts/check.sh --all
+
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22 }
+      # TODO(trust-pyramid): add runtimes the local stack needs (e.g. Java 21 for Firebase emulators)
+      - run: npm ci --prefix web && npm ci --prefix server && npm ci --prefix verify
+      - run: npx --prefix verify playwright install --with-deps chromium
+      - run: node verify/app.mjs up
+      - run: node verify/smoke.mjs
+      - if: always()
+        run: node verify/app.mjs down
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: smoke-artifacts, path: verify/.state/artifacts }
+
+  ai-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      # Review once per code diff. Committing dispositions does not change this hash, so it does not re-trigger a review.
+      - id: diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          hash=$(git diff "$BASE_SHA"...HEAD -- . ':(exclude)quality/review-dispositions.json' | sha256sum | cut -c1-16)
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: .ai-review/review.json
+          key: ai-review-${{ steps.diff.outputs.hash }}
+
+      # Reviewer: Claude Code (default). Needs the ANTHROPIC_API_KEY secret.
+      - if: steps.cache.outputs.cache-hit != 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Read quality/reviewer-prompt.md and follow it exactly.
+            Scope: git diff ${{ github.event.pull_request.base.sha }}...HEAD
+            Write your JSON array (and nothing else) to .ai-review/review.json.
+          claude_args: |
+            --allowedTools "Read,Grep,Glob,Write,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(mkdir -p .ai-review)"
+
+      # Reviewer alternative: Codex. Delete the Claude step above and uncomment this one. Needs OPENAI_API_KEY.
+      # - if: steps.cache.outputs.cache-hit != 'true'
+      #   uses: openai/codex-action@v1
+      #   with:
+      #     openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+      #     permission-profile: ":workspace"
+      #     prompt: |
+      #       Read quality/reviewer-prompt.md and follow it exactly.
+      #       Scope: git diff ${{ github.event.pull_request.base.sha }}...HEAD
+      #       Your final message must be only the JSON array.
+      #     output-file: .ai-review/review.json
+
+      - uses: actions/upload-artifact@v4
+        with: { name: ai-review, path: .ai-review/review.json }
+      - name: Post findings with IDs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "### AI review findings"
+            echo 'Add a disposition for each ID to `quality/review-dispositions.json`.'
+            echo '```'
+            node scripts/review-gate.mjs --list
+            echo '```'
+          } > .ai-review/comment.md
+          gh pr comment "$PR" --body-file .ai-review/comment.md --edit-last || gh pr comment "$PR" --body-file .ai-review/comment.md
+
+  review-gate:
+    needs: ai-review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v5
+        with: { node-version: 22 }
+      - uses: actions/download-artifact@v4
+        with: { name: ai-review, path: .ai-review }
+      # TODO(trust-pyramid): install dependencies so confirmed-finding tests can run on head
+      - run: npm ci --prefix web && npm ci --prefix server
+      - env:
+          REVIEW_BASE_REF: ${{ github.event.pull_request.base.sha }}
+        run: node scripts/review-gate.mjs --summary "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,17 @@
+{
+  "description": "Trust Pyramid: block finishing a turn until scripts/check.sh passes.",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/scripts/stop-gate.sh\"",
+            "timeout": 600,
+            "statusMessage": "Running quality checks"
+          }
+        ]
+      }
+    ]
+  }
+}

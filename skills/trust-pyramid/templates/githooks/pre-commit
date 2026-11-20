@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Enable once per clone: git config core.hooksPath .githooks
+if ! scripts/check.sh --staged; then
+  echo
+  echo "Commit blocked: fix the failures above. Do not bypass with --no-verify."
+  exit 1
+fi

@@ -1,0 +1,4 @@
+{
+  "installCommand": "npm ci --prefix web && npm ci --prefix server",
+  "timeoutSeconds": 600
+}

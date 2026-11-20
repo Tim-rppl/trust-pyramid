@@ -1,0 +1,6 @@
+interface:
+  display_name: "Trust Pyramid"
+  short_description: "Agent-proof quality gates: rules, runtime proof, enforced AI review"
+  default_prompt: "Use $trust-pyramid to set up quality gates for this project."
+policy:
+  allow_implicit_invocation: true

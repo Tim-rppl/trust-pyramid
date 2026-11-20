@@ -1,0 +1,5 @@
+# Trust Pyramid: append to .gitignore
+verify/.state/
+verify/node_modules/
+.quality-state/
+.ai-review/
