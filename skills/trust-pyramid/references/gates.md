@@ -63,9 +63,11 @@ when the package manager supports it.
   lets the turn end with a visible `systemMessage`. No infinite loops, and the hand-over is never
   silent (stderr on exit 0 is not shown to the model). Claude Code also has its own cap.
 
-Registration:
-- Claude Code: `templates/claude/settings.json` → `.claude/settings.json` (uses `$CLAUDE_PROJECT_DIR`).
-- Codex: `templates/codex/hooks.json` → `.codex/hooks.json` (resolves the script from the git root).
+Registration (staged by the agent, installed by the user with `scripts/install-agent-hooks.sh`,
+because each agent protects its own config folder; in testing, Claude could not write
+`.claude/settings.json` and Codex could not write `.codex/`):
+- Claude Code: `templates/claude/settings.json` → `quality/install/claude-settings.json` → `.claude/settings.json`.
+- Codex: `templates/codex/hooks.json` → `quality/install/codex-hooks.json` → `.codex/hooks.json`.
   Codex only loads project hooks from trusted projects and asks the user to review and trust new or
   changed hooks; tell the user to approve it once.
 

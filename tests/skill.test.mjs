@@ -43,7 +43,7 @@ test('Codex metadata and Claude plugin manifests are present and consistent', ()
 });
 
 test('shell templates are executable', () => {
-  for (const path of ['templates/scripts/check.sh', 'templates/scripts/stop-gate.sh', 'templates/githooks/pre-commit']) {
+  for (const path of ['templates/scripts/check.sh', 'templates/scripts/stop-gate.sh', 'templates/scripts/install-agent-hooks.sh', 'templates/scripts/trusted-check.sh', 'templates/scripts/no-suppressions.sh', 'templates/githooks/pre-commit']) {
     assert.ok(statSync(join(SKILL, path)).mode & 0o111, `${path} must be executable`);
   }
 });

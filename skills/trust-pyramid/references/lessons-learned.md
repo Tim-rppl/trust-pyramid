@@ -51,3 +51,16 @@ Each item cost real time during a reference rollout on a production TypeScript/R
     in config, check deleted from `check.sh`, folder added to the lint ignore list, and a
     `lint-disable` comment) passed every gate including naive CI. Trusted CI (base branch's gate
     files) plus a no-new-suppressions check blocked all of them with no false positives.
+23. **Agents cannot install their own hooks.** In a field test, Claude Code could not write
+    `.claude/settings.json` and Codex could not write `.codex/`; each installed the other's file.
+    Stage hook configs and let the user install them.
+24. **Protect the gates last.** One setup installed the `permissions.deny` list for gate files,
+    then needed to fix lint config and was locked out. It stopped and asked the user, which is the
+    right behavior, but the order should avoid it.
+25. **Verify gates on the committed tree.** A setup's own fixture test passed before commit and
+    failed after, because it cloned HEAD and assumed `quality/` did not exist yet.
+26. **Agents download desktop browsers.** Agents installed Cypress and a full Chromium into /tmp;
+    launched without a display (and inside Codex's sandbox) they crashed, and macOS showed crash
+    dialogs to the user. Forbid it in instructions; use headless Playwright only.
+27. **Benchmarks on laptops.** Six parallel agent streams froze an 8 GB machine and used up a
+    5-hour subscription quota in about 30 minutes. Run one stream at a time and estimate usage first.
