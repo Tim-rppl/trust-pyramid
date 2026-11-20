@@ -93,6 +93,11 @@ Read `references/layer-2-static.md`. Typecheck strict, boundary rules, a project
 unit tests for pure logic, property tests for money/quota/permission/time logic, database
 security-rule tests.
 
+Before enabling each new rule, run it on the whole repository and record the count of existing
+violations in `docs/QUALITY.md`. Zero: enable it everywhere. Otherwise fix them now if there are
+few, or enable it for new code only and record the baseline (count and files) in `quality/` so the
+backlog is tracked until it reaches zero (core rule 6, ratchet).
+
 ### Phase 4 - Layer 3: verification
 
 Read `references/layer-3-verification.md`. One-command local stack with isolated ports and seeded
@@ -141,10 +146,20 @@ Write a short root `AGENTS.md` (Claude Code: `CLAUDE.md` containing `@AGENTS.md`
    smoke step), confirm it fails, then restore. Restore from a backup or with an exact edit,
    never with `git checkout` on files that hold uncommitted work.
 3. Demo one small feature end to end: write a deliberately non-compliant version → gate blocks
-   it → fix from the error messages → verify in the running app with screenshots → run the
-   reviewer and confirm/reject findings with evidence → turn confirmed findings into rules →
-   commit. Record the real outputs in `docs/QUALITY.md`.
-4. Report to the user in plain language: what was installed, how each layer was proven, what is
+   it → **run the reviewer blind on that pre-fix commit first** (no hints about the known problems)
+   and record which of them it found on its own → fix from the error messages → verify in the
+   running app with screenshots → run the reviewer again and confirm/reject findings with
+   evidence → turn confirmed findings into rules → commit. Finish by removing the demo code unless
+   it is a real feature the user wants to keep (code is memory: agents copy what is left behind).
+   Record the real outputs, including the blind-review result, in `docs/QUALITY.md`.
+4. Prove CI blocks a recurrence. A new rule only takes effect in CI after it merges (CI uses the
+   base branch's rules), so the PR that adds it cannot show this. After the gates are on a base
+   branch (the default branch, or a throwaway base as in `references/gates.md`, "Bootstrap"),
+   open a throwaway probe PR based on it that reintroduces one mistake a rule catches, committed
+   with `--no-verify` only for this probe (the local gates would stop it otherwise). Expect the
+   CI `check` job to fail at the exact file:line, record the result, then close the PR and delete
+   its branch without merging.
+5. Report to the user in plain language: what was installed, how each layer was proven, what is
    still missing, and the one-time setup they must do themselves (secrets, branch protection).
 
 Commit to a new branch. Never push or deploy unless the user asks.
