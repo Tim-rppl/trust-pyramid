@@ -32,7 +32,11 @@ jobs:
       - run: npm ci --prefix web && npm ci --prefix server
       - name: Checks with the base branch's rules
         run: |
-          git show "$BASE_SHA:scripts/trusted-check.sh" > "$RUNNER_TEMP/trusted-check.sh"
+          if git cat-file -e "$BASE_SHA:scripts/trusted-check.sh" 2>/dev/null; then
+            git show "$BASE_SHA:scripts/trusted-check.sh" > "$RUNNER_TEMP/trusted-check.sh"
+          else
+            cp scripts/trusted-check.sh "$RUNNER_TEMP/trusted-check.sh"  # bootstrap: this PR adds the gates
+          fi
           bash "$RUNNER_TEMP/trusted-check.sh" "$BASE_SHA"
 
   smoke:
@@ -49,7 +53,11 @@ jobs:
       - run: npx --prefix verify playwright install --with-deps chromium
       - name: Smoke flow with the base branch's smoke steps
         run: |
-          git show "$BASE_SHA:scripts/trusted-check.sh" > "$RUNNER_TEMP/trusted-check.sh"
+          if git cat-file -e "$BASE_SHA:scripts/trusted-check.sh" 2>/dev/null; then
+            git show "$BASE_SHA:scripts/trusted-check.sh" > "$RUNNER_TEMP/trusted-check.sh"
+          else
+            cp scripts/trusted-check.sh "$RUNNER_TEMP/trusted-check.sh"  # bootstrap: this PR adds the gates
+          fi
           bash "$RUNNER_TEMP/trusted-check.sh" "$BASE_SHA" bash -c 'node verify/app.mjs up && node verify/smoke.mjs'
       - if: always()
         run: node verify/app.mjs down
@@ -78,8 +86,13 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          git checkout "$BASE_SHA" -- quality/reviewer-prompt.md
-          git show "$BASE_SHA:scripts/review-gate.mjs" > "$RUNNER_TEMP/review-gate.mjs"
+          if git cat-file -e "$BASE_SHA:scripts/review-gate.mjs" 2>/dev/null; then
+            git checkout "$BASE_SHA" -- quality/reviewer-prompt.md
+            git show "$BASE_SHA:scripts/review-gate.mjs" > "$RUNNER_TEMP/review-gate.mjs"
+          else
+            echo "::warning title=Gate bootstrap::The base branch has no review gate yet (this PR adds it); using this PR's reviewer prompt and review gate."
+            cp scripts/review-gate.mjs "$RUNNER_TEMP/review-gate.mjs"
+          fi
       - id: cache
         uses: actions/cache@v4
         with:
@@ -153,6 +166,13 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          git show "$BASE_SHA:scripts/review-gate.mjs" > "$RUNNER_TEMP/review-gate.mjs"
-          git show "$BASE_SHA:quality/review.config.json" > quality/review.config.json 2>/dev/null || true
+          if git cat-file -e "$BASE_SHA:scripts/review-gate.mjs" 2>/dev/null; then
+            git show "$BASE_SHA:scripts/review-gate.mjs" > "$RUNNER_TEMP/review-gate.mjs"
+            if git cat-file -e "$BASE_SHA:quality/review.config.json" 2>/dev/null; then
+              git show "$BASE_SHA:quality/review.config.json" > quality/review.config.json
+            fi
+          else
+            echo "::warning title=Gate bootstrap::The base branch has no review gate yet (this PR adds it); using this PR's copy."
+            cp scripts/review-gate.mjs "$RUNNER_TEMP/review-gate.mjs"
+          fi
           node "$RUNNER_TEMP/review-gate.mjs" --summary "$GITHUB_STEP_SUMMARY"

@@ -11,6 +11,19 @@ base=${1:?usage: scripts/trusted-check.sh <base-ref> [command...]}
 shift
 [[ $# -gt 0 ]] || set -- bash scripts/check.sh --all
 
+# Bootstrap: the change that introduces the gates has no base copy to trust yet. Run its own gate
+# files, say so loudly, and let the result count. From the next change on, the base copy applies.
+if ! git cat-file -e "$base:scripts/trusted-check.sh" 2>/dev/null; then
+  note="Gate bootstrap: $base has no scripts/trusted-check.sh, so this change introduces the gates. Its own gate files are used for this run (there is nothing on the base to trust yet); trusted checks apply to every change after it merges."
+  echo "$note"
+  [[ -n "${GITHUB_ACTIONS:-}" ]] && echo "::warning title=Gate bootstrap::$note"
+  [[ -n "${GITHUB_STEP_SUMMARY:-}" ]] && echo "**$note**" >> "$GITHUB_STEP_SUMMARY"
+  status=0
+  "$@" || status=1
+  bash scripts/no-suppressions.sh "$base" || status=1
+  exit $status
+fi
+
 # The list itself comes from the base commit, so a PR cannot shrink it.
 protected=$(git show "$base:quality/protected-paths.txt" 2>/dev/null | grep -vE '^\s*(#|$)')
 if [[ -z "$protected" ]]; then

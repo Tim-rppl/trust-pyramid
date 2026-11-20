@@ -61,6 +61,17 @@ test('CI never executes gate files from the PR checkout', () => {
   assert.doesNotMatch(body, /node scripts\/review-gate\.mjs|from '\.\/scripts\/review-gate\.mjs'/, 'review-gate must be the base copy');
   assert.match(body, /git checkout "\$BASE_SHA" -- quality\/reviewer-prompt\.md/, 'the reviewer prompt must come from base');
   assert.equal((body.match(/git show "\$BASE_SHA:scripts\/trusted-check\.sh"/g) ?? []).length, 2, 'check and smoke both use trusted-check');
+  // The PR's own copy is used only for the bootstrap PR, when the base branch does not have the file.
+  const fallbacks = body.match(/^\s*cp scripts\/\S+/gm) ?? [];
+  assert.ok(fallbacks.length > 0);
+  for (const fallback of fallbacks) {
+    const file = fallback.trim().split(' ')[1];
+    const before = body.slice(0, body.indexOf(fallback));
+    const guard = before.lastIndexOf(`if git cat-file -e "$BASE_SHA:${file}"`);
+    assert.ok(guard >= 0, `${file}: the PR's copy may only be used when the base has none`);
+    const branch = before.slice(guard);
+    assert.ok(/\n\s*else\n/.test(branch) && !/\n\s*fi\n/.test(branch), `${file}: the PR's copy belongs in the else branch of its guard`);
+  }
 });
 
 test('line endings: this repo and installed projects keep gate files LF on Windows (core.autocrlf=true)', () => {

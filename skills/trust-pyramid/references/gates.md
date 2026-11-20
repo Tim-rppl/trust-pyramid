@@ -112,6 +112,21 @@ because each agent protects its own config folder; in testing, Claude could not 
    posts findings as a PR comment
 4. `review-gate` - `node scripts/review-gate.mjs` (see `layer-5-ai-reviewer.md`)
 
+### Bootstrap: the PR that introduces the gates
+
+CI runs the base branch's gate files, and on the PR that adds them the base has none. The workflow
+detects this (`git cat-file -e "$BASE_SHA:scripts/trusted-check.sh"`) and runs the PR's own copies
+instead, labelled with a `Gate bootstrap` warning and a line in the job summary. Without that
+check, `git show` stops the job with `fatal: path 'scripts/trusted-check.sh' exists on disk, but
+not in '<base sha>'` (exit code 128), which reads like a broken setup. Tell the user:
+
+- The gate PR is checked by its own (untrusted) gate files; that is expected once. Every PR opened
+  after it merges is checked with the base branch's copies.
+- To see the trusted path work before merging into the default branch, stack the branches: merge
+  the gate PR into a throwaway base branch first, open a small probe PR against that branch, and
+  confirm the `check` job uses the base copies (no `Gate bootstrap` warning). Then merge the gate PR
+  into the default branch.
+
 ## Branch protection (the user must do this once)
 
 Settings → Branches → protect `main`: require a pull request, require status checks `check`,
