@@ -114,19 +114,22 @@ she slept; in the month before the talk she shipped 3,000.
 
 ## How it works
 
-The agent keeps fixing its own code until the checks pass. You only look at the result:
+The agent fixes its own code until the checks pass. Each new kind of mistake is added to the rule
+library as a check, so it is not made again, and you do not maintain the rules by hand:
 
 ```mermaid
 flowchart LR
     A["You ask for<br/>a feature"] --> B["The agent<br/>writes the code"]
     B --> C{"Automatic<br/>checks"}
-    C -- "Fail: the error says how to fix it" --> B
-    C -- "Pass" --> D["You look at the<br/>results and merge"]
+    C -- "Fail: the error<br/>says how to fix it" --> B
+    C -- "Pass" --> D["You merge"]
+    C -- "A new kind of<br/>mistake is found" --> E[("Rule library<br/>the agent adds a rule")]
+    E -- "Checked every time<br/>from now on" --> C
 ```
 
 The checks are ordinary scripts: lint rules, type checks, tests, and a short test run in the real
 app. They cost nothing and give the same answer every time. On pull requests an AI reviewer also
-looks for what the scripts do not cover yet; a problem it reports counts only when a test proves it. When a new kind of mistake gets through, it becomes a new check ([what to expect](#what-to-expect)).
+looks for what the scripts do not cover yet; a problem it reports counts only when a test proves it. Rule changes reach `main` through a pull request you approve ([what to expect](#what-to-expect)).
 
 The same checks run at three points, and once more by you:
 
