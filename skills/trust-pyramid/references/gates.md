@@ -34,6 +34,15 @@ hooks fall to the same tricks. Three defenses, all installed by this skill:
 Local gates (Stop hook, pre-commit) are for fast feedback and can be defeated by an agent that
 edits them; only trusted CI with branch protection is unskippable. Say this plainly to the user.
 
+## Line endings (Windows)
+
+Git for Windows defaults to `core.autocrlf=true`, which checks text files out with CRLF line
+endings. bash cannot run a CRLF script, and hooks copied from a CRLF checkout carry CRLF too.
+Install `templates/gitattributes` as (or append it to) `.gitattributes` **before** the first commit
+of the gate files, so every clone gets LF for `scripts/`, `.githooks/`, `lint/`, `quality/`,
+`verify/`, `.github/`, `.claude/` and `.codex/`. If gate files were already committed from a CRLF
+working tree, run `git add --renormalize .` once and commit the result.
+
 ## scripts/check.sh
 
 Copy `templates/scripts/check.sh` and edit the `CHECKS` table (each entry: space-separated path

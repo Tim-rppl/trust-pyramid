@@ -154,6 +154,7 @@ Commit to a new branch. Never push or deploy unless the user asks.
 | `templates/github/` | `.github/` (workflow, PR template) |
 | `templates/AGENTS.md` | `AGENTS.md` (+ `CLAUDE.md` containing `@AGENTS.md`) |
 | `templates/gitignore-additions.txt` | append to `.gitignore` |
+| `templates/gitattributes` | append to `.gitattributes` (LF line endings for gate files on Windows) |
 
 Adapt every template to the stack; remove example rules that do not apply. Templates are
 JavaScript/Node because the verification tooling (Playwright) is; for non-Node stacks keep

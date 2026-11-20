@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import { ROOT, SKILL } from './helpers.mjs';
+import { ROOT, SKILL, copyTemplate, tempRepo } from './helpers.mjs';
 
-const skillMd = readFileSync(join(SKILL, 'SKILL.md'), 'utf8');
+// Normalize line endings: a Windows checkout without .gitattributes would have CRLF here.
+const skillMd = readFileSync(join(SKILL, 'SKILL.md'), 'utf8').replace(/\r\n/g, '\n');
 const frontmatter = Object.fromEntries(skillMd.split('---')[1].trim().split('\n')
   .map(line => line.match(/^([\w-]+):\s*(.*)$/)).filter(Boolean).map(match => [match[1], match[2]]));
 
@@ -56,4 +58,15 @@ test('CI never executes gate files from the PR checkout', () => {
   assert.doesNotMatch(body, /node scripts\/review-gate\.mjs|from '\.\/scripts\/review-gate\.mjs'/, 'review-gate must be the base copy');
   assert.match(body, /git checkout "\$BASE_SHA" -- quality\/reviewer-prompt\.md/, 'the reviewer prompt must come from base');
   assert.equal((body.match(/git show "\$BASE_SHA:scripts\/trusted-check\.sh"/g) ?? []).length, 2, 'check and smoke both use trusted-check');
+});
+
+test('line endings: this repo and installed projects keep gate files LF on Windows (core.autocrlf=true)', () => {
+  const eol = (cwd, paths) => execFileSync('git', ['check-attr', 'eol', '--', ...paths], { cwd, encoding: 'utf8' });
+  const own = ['skills/trust-pyramid/SKILL.md', 'skills/trust-pyramid/templates/scripts/check.sh', 'skills/trust-pyramid/templates/githooks/pre-commit', 'tests/skill.test.mjs'];
+  for (const line of eol(ROOT, own).trim().split('\n')) assert.match(line, /: eol: lf$/, `this repository: ${line}`);
+
+  const { dir } = tempRepo();
+  copyTemplate('gitattributes', dir, '.gitattributes');
+  const installed = ['scripts/check.sh', 'scripts/review-gate.mjs', '.githooks/pre-commit', 'lint/project-plugin.mjs', 'quality/protected-paths.txt', '.github/workflows/quality.yml', '.claude/settings.json', '.codex/hooks.json', 'tools/build.sh'];
+  for (const line of eol(dir, installed).trim().split('\n')) assert.match(line, /: eol: lf$/, `installed project: ${line}`);
 });
