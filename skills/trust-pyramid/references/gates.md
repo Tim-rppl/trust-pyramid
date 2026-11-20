@@ -97,6 +97,12 @@ when the package manager supports it.
   feed stderr back as the reason.
 - Runs only checks marked `|fast` in `scripts/check.sh` (typecheck, lint, quick tests), so ending a
   turn costs seconds. Pre-commit and CI run everything.
+- Checks only **uncommitted** changes (`git diff HEAD` plus untracked files). Work the agent already
+  committed but has not pushed is not checked by the Stop hook; pre-commit checked it at commit time
+  and CI checks it on the PR. The hook is fast feedback, not a guarantee.
+- Shared or local: committed in `.claude/settings.json`, the hook runs for everyone who uses Claude
+  Code on the project; in `.claude/settings.local.json` it runs only on this machine. Ask the user in
+  Phase 5. Codex reads `.codex/hooks.json` (committed) and asks each user to trust it.
 - After `STOP_GATE_MAX_ATTEMPTS` failed attempts (default 2) it blocks once more with "stop and
   explain the failure to the user", then lets the turn end with a visible `systemMessage`. The
   failure message also tells the agent to hand over at once when the fix needs a protected file.

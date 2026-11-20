@@ -92,7 +92,7 @@ flowchart TB
 
 | 环节 | 消耗 token 吗 | 实测 / 预估 |
 |---|---|---|
-| agent 一次性搭建 | 是 | 25–30 分钟；在中等规模的 Remix 项目上，Claude 约 $6.5，Codex 约 850 万 token |
+| agent 一次性搭建 | 是 | 24–32 分钟；在中等规模的 Remix 项目上，Claude Code 约 $6.5，Codex 约 850 万 token（[基准测试](docs/BENCHMARK.md)，2026 年 11 月）；项目越大花费越多 |
 | lint、类型检查、测试、Stop hook、pre-commit、可信 CI | **否**，都是脚本 | 免费 |
 | 关卡拦下后，agent 修复 | 是 | 代码本来就对时为 0；否则多一两轮（Stop hook 最多拦 2 次） |
 | AI 审核员，每个 PR 在 CI 里跑一次 | 是 | 小改动约 $0.7；有发现时还要加上 agent 处理的用量 |
@@ -105,7 +105,7 @@ flowchart TB
 **什么时候值得用。** 长期维护的项目（规则写一次、之后永久免费运行）、有模型不可能知道的项目专属规矩、需要防止回归、用较小或较便宜的模型、参与的人很多，以及项目负责人看不懂代码、却需要能信任的 agent。
 
 **已知限制。**
-- 本地关卡（Stop hook、pre-commit）是快速反馈，不是保证：agent 可以修改它们。只有可信 CI 加上分支保护和代码负责人审批，才是真正跳不过的。
+- 本地关卡（Stop hook、pre-commit）是快速反馈，不是保证：agent 可以修改它们。Stop hook 只检查未提交的改动；已提交的改动由 pre-commit 和 CI 检查。只有可信 CI 加上分支保护和代码负责人审批，才是真正跳不过的。
 - agent 装不了自己的 hook 配置，需要你运行一次 `scripts/install-agent-hooks.sh`。
 - AI 审核员不稳定（实测 10 次里漏了 1 次埋入的问题）。它的发现必须有证据才算数，确认的问题应该变成规则或测试。
 - Codex 的沙箱禁止启动浏览器，所以在 Codex 下冒烟流程放在 CI 里跑。

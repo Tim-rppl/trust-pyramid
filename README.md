@@ -101,7 +101,7 @@ Choose **full** for smaller or cheaper coding models, many contributors, or high
 
 | Step | Uses model tokens? | Measured / expected |
 |---|---|---|
-| One-time setup by the agent | yes | 25-30 min; ~$6.5 with Claude, ~8.5M tokens with Codex, on a mid-size Remix app |
+| One-time setup by the agent | yes | 24-32 min; ~$6.5 with Claude Code, ~8.5M tokens with Codex, on a mid-size Remix app ([benchmark](docs/BENCHMARK.md), November 2026); larger projects cost more |
 | Lint, typecheck, tests, Stop hook, pre-commit, trusted CI | **no** - scripts | free |
 | Agent fixing what a gate rejected | yes | nothing when the code is right; a round or two otherwise (Stop hook gives up after 2) |
 | AI reviewer, once per PR in CI | yes | ~$0.7 for a small diff, plus the agent's fixes if it finds something |
@@ -121,6 +121,7 @@ who cannot read code but need agents they can trust.
 
 **Known limits.**
 - Local gates (Stop hook, pre-commit) are fast feedback, not a guarantee: an agent can edit them.
+  The Stop hook checks only uncommitted changes; committed work is checked by pre-commit and CI.
   Only trusted CI with branch protection and code owners is unskippable.
 - Agents cannot install their own hook configs; you run `scripts/install-agent-hooks.sh` once.
 - The AI reviewer is not deterministic (it missed a planted bug in 1 of 10 runs). Its findings count

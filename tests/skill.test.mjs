@@ -118,3 +118,12 @@ test('the deny list is per machine, so a rule-writing worktree is not locked out
   assert.match(addRule, /git worktree add/);
   assert.match(readFileSync(join(SKILL, 'references/gates.md'), 'utf8'), /## Changing gate files/);
 });
+
+test('setup cost figures are the same in SKILL.md, README and the benchmark', () => {
+  const docs = [join(SKILL, 'SKILL.md'), join(ROOT, 'README.md'), join(ROOT, 'docs/BENCHMARK.md')].map(file => readFileSync(file, 'utf8'));
+  for (const text of docs) {
+    assert.match(text, /\$6\.5/);
+    assert.match(text, /8\.5M tokens/);
+    assert.match(text, /24-32 min/);
+  }
+});

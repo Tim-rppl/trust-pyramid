@@ -125,6 +125,12 @@ normal feature work. Writing or changing a rule (`references/add-rule.md`) happe
 git worktree on its own branch, where that file does not exist, and reaches the default branch only
 through a PR that a human reviews (CODEOWNERS and trusted CI cover the gate paths).
 
+Ask whether the Stop hook should be shared with everyone who uses Claude Code on the project
+(committed in `.claude/settings.json`, the default) or enabled only on this machine
+(`.claude/settings.local.json`). For local only, stage a single `claude-settings.local.json` that
+holds both `hooks` and `permissions`, and no `claude-settings.json`. Tell the user what the hook
+covers: uncommitted changes only (fast feedback, not a guarantee); pre-commit and CI cover commits.
+
 ### Phase 6 - Layer 5: AI reviewer (enforced)
 
 Read `references/layer-5-ai-reviewer.md`. Install the reviewer prompt, the local reviewer agent,
@@ -207,8 +213,10 @@ JavaScript/Node because the verification tooling (Playwright) is; for non-Node s
 
 ## Running environment
 
-- Tell the user the cost up front: a full setup on an existing app took ~30 minutes and the
-  equivalent of $7-19 of model usage (Claude) or ~10M tokens (Codex) in testing.
+- Tell the user the cost up front, with its source: in the benchmark (`docs/BENCHMARK.md`: a
+  mid-size Remix app, Claude Code 2.1 and Codex CLI 0.169, November 2026) a setup took 24-32 minutes
+  and about $6.5 of model usage with Claude Code, or about 8.5M tokens with Codex. Larger or
+  multi-package projects cost more; say so rather than promising the benchmark figure.
 - No display: never install or launch Cypress or desktop browsers. Headless Playwright is enough.
 - Codex's sandbox blocks launching browsers; run the smoke flow outside the sandbox or leave it to CI.
 - On small machines (8 GB RAM), run one heavy job at a time.
