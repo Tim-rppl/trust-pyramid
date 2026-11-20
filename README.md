@@ -21,6 +21,20 @@ Trust Pyramid is an agent skill for Claude Code and Codex. Run it once in a repo
 up project-specific lint rules, runtime checks, an AI reviewer, and gates that check every change
 the agent makes.
 
+## Background
+
+Trust Pyramid implements the inverted trust pyramid that Lauren Tan, Principal Engineer at
+SpaceXSI, presented on the main stage of [AI Engineer Code Summit 2026](https://ai.engineer/code/2026/talks/lauren-tan) in
+[*All Code Is Slop (Except Mine)*](https://www.youtube.com/watch?v=O_zcc6Xl12g). The talk draws on shipping thousands of
+agent-written pull requests. Its central point: when an agent repeats a mistake, the correction
+belongs in the codebase, an API, or an executable check, not in another line of `AGENTS.md`.
+
+The project also draws on OpenAI's [*Harness engineering*](https://openai.com/index/harness-engineering/)
+and a production study of agents fixing test failures at scale
+([Maddila et al., 2025](https://arxiv.org/abs/2507.18755)). Trust Pyramid adds an enforced AI
+reviewer layer and packages the method as an installable skill. It is an independent project, not
+affiliated with Lauren Tan, SpaceXSI or Cursor.
+
 ## Highlights
 
 - **Rules live in code, not in prompts.** A mistake you correct once becomes a lint rule or a test,
@@ -134,12 +148,8 @@ branch protection; the templates target GitHub Actions.
 
 ## Related
 
-The approach follows Lauren Tan's talk
-[*All Code Is Slop (Except Mine)*](https://www.youtube.com/watch?v=O_zcc6Xl12g) and adds an
-enforced reviewer layer. Her own skills are published as
-[pstack](https://github.com/cursor/plugins/tree/main/pstack); they shape how the agent writes code,
-while Trust Pyramid checks the result. pstack is not required, and Trust Pyramid is not affiliated
-with her or Cursor.
+Lauren Tan's own skills are published as [pstack](https://github.com/cursor/plugins/tree/main/pstack).
+They shape how the agent writes code, while Trust Pyramid checks the result. pstack is not required.
 
 ## Contributing
 

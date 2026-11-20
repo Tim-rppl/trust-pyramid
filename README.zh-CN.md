@@ -20,6 +20,18 @@
 Trust Pyramid 是一个给 Claude Code 和 Codex 用的 agent skill。在仓库里运行一次，它会为项目搭好专属的
 lint 规则、运行时检查、AI 审核员，以及检查 agent 每一次改动的关卡。
 
+## 背景
+
+Trust Pyramid 实现的是“倒置信任金字塔”方法。它来自 SpaceXSI 首席工程师 Lauren Tan 在
+[AI Engineer Code Summit 2026](https://ai.engineer/code/2026/talks/lauren-tan) 主会场的演讲
+[*All Code Is Slop (Except Mine)*](https://www.youtube.com/watch?v=O_zcc6Xl12g)，演讲内容基于她用 agent 交付数千个 PR 的实践。
+核心观点是：agent 重复犯的错，应该在代码、API 或可执行的检查里纠正，而不是往 `AGENTS.md` 里再加一句提醒。
+
+本项目还参考了 OpenAI 的 [*Harness engineering*](https://openai.com/index/harness-engineering/)，
+以及一项关于 agent 在生产环境中大规模修复测试失败的研究（[Maddila 等，2025](https://arxiv.org/abs/2507.18755)）。
+在此基础上，Trust Pyramid 增加了强制执行的 AI 审核员层，并把整套方法做成可以直接安装的 skill。
+本项目是独立项目，与 Lauren Tan、SpaceXSI 及 Cursor 均无关联。
+
 ## 特点
 
 - **规则写在代码里，不写在提示词里。** 纠正过一次的错误会变成 lint 规则或测试，之后不管哪个 agent、哪个人都不会再犯。
@@ -116,7 +128,7 @@ flowchart TB
 
 ## 相关项目
 
-这套方法来自 Lauren Tan 的演讲 [*All Code Is Slop (Except Mine)*](https://www.youtube.com/watch?v=O_zcc6Xl12g)，并加上了强制执行的审核员层。她本人的 skill 以 [pstack](https://github.com/cursor/plugins/tree/main/pstack) 的名字开源：pstack 影响 agent 怎么写代码，Trust Pyramid 负责检查写出来的结果。使用 Trust Pyramid 不需要安装 pstack；本项目与她本人及 Cursor 没有关联。
+Lauren Tan 本人的 skill 以 [pstack](https://github.com/cursor/plugins/tree/main/pstack) 的名字开源。pstack 影响 agent 怎么写代码，Trust Pyramid 负责检查写出来的结果。使用 Trust Pyramid 不需要安装 pstack。
 
 ## 参与贡献
 
