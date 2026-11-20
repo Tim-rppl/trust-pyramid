@@ -95,6 +95,43 @@ We tested Trust Pyramid with real Claude Code and Codex runs before recommending
 Choose **full** for smaller or cheaper coding models, many contributors, or high-risk code
 (money, permissions, personal data). You can switch at any time.
 
+## Cost and limits
+
+**Where usage goes.** Most of the pyramid is ordinary scripts and costs no model usage at all.
+
+| Step | Uses model tokens? | Measured / expected |
+|---|---|---|
+| One-time setup by the agent | yes | 25-30 min; ~$6.5 with Claude, ~8.5M tokens with Codex, on a mid-size Remix app |
+| Lint, typecheck, tests, Stop hook, pre-commit, trusted CI | **no** - scripts | free |
+| Agent fixing what a gate rejected | yes | nothing when the code is right; a round or two otherwise (Stop hook gives up after 2) |
+| AI reviewer, once per PR in CI | yes | ~$0.7 for a small diff, plus the agent's fixes if it finds something |
+| `AGENTS.md` and rules in the prompt | a little | a dozen lines per session |
+
+In our benchmark a near-full setup (reviewer after every task, 3-attempt Stop hook) cost ~4x per
+task. The lite profile removes those two costs; **lite has not been benchmarked yet**, so its numbers
+above are estimates.
+
+**When it is not worth it.** Small personal projects, prototypes, throwaway code, or a frontier
+model making small changes you can check yourself. Our benchmark found no quality gain on single
+tasks in that setting.
+
+**When it pays off.** Long-lived repos (rules are written once and run free forever), project rules a
+model cannot know, preventing regressions, smaller or cheaper models, many contributors, and owners
+who cannot read code but need agents they can trust.
+
+**Known limits.**
+- Local gates (Stop hook, pre-commit) are fast feedback, not a guarantee: an agent can edit them.
+  Only trusted CI with branch protection and code owners is unskippable.
+- Agents cannot install their own hook configs; you run `scripts/install-agent-hooks.sh` once.
+- The AI reviewer is not deterministic (it missed a planted bug in 1 of 10 runs). Its findings count
+  only with evidence, and confirmed ones should become rules or tests.
+- Codex's sandbox blocks launching browsers, so the smoke flow runs in CI there.
+- Benchmarks were small (one run per cell). See [docs/BENCHMARK.md](docs/BENCHMARK.md).
+
+To keep usage low: start with lint rules, tests and trusted CI only; turn on the per-PR reviewer if
+you want it, or only for risky PRs; check `quality/review-log.md` after a few weeks and turn the
+reviewer off if it finds nothing real.
+
 ## Quick start
 
 ### Claude Code
@@ -300,8 +337,8 @@ rest: noisy rules start on new code only, with a recorded backlog.
 **Do I need GitHub?** The local gates work anywhere. The unskippable layer needs CI with branch
 protection; the templates target GitHub Actions.
 
-**What does it cost?** Linting and tests are free. The AI review runs once per code change in CI
-and uses your Anthropic or OpenAI API key.
+**What does it cost?** Checks are scripts and free; the one-time setup and the per-PR AI review use
+model tokens (your Anthropic or OpenAI key in CI). See [Cost and limits](#cost-and-limits).
 
 ## Repository layout
 
