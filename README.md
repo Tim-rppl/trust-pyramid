@@ -114,25 +114,28 @@ she slept; in the month before the talk she shipped 3,000.
 
 ## How it works
 
+The agent keeps fixing its own code until the checks pass. You only look at the result:
+
 ```mermaid
-flowchart TB
-    A["1 · Structure and APIs<br/>make the wrong thing hard to write"] --> B["2 · Static analysis<br/>types, boundaries, project lint rules, tests"]
-    B --> C["3 · Verification<br/>run the app, screenshots, smoke flow"]
-    C --> D["4 · Prose<br/>a short AGENTS.md"]
-    D --> E["5 · AI reviewer<br/>finds candidates; evidence decides"]
-    E --> F["6 · Human<br/>reviews evidence, not diffs"]
-    E -. "confirmed findings become rules" .-> B
+flowchart LR
+    A["You ask for<br/>a feature"] --> B["The agent<br/>writes the code"]
+    B --> C{"Automatic<br/>checks"}
+    C -- "Fail: the error says how to fix it" --> B
+    C -- "Pass" --> D["You look at the<br/>results and merge"]
 ```
 
-Higher layers are cheaper and give the same answer every time, so the skill uses them first. Gates
-make sure each layer runs:
+The checks are ordinary scripts: lint rules, type checks, tests, and a short test run in the real
+app. They cost nothing and give the same answer every time. On pull requests an AI reviewer also
+looks for what the scripts do not cover yet; a problem it reports counts only when a test proves it. When a new kind of mistake gets through, it becomes a new check ([what to expect](#what-to-expect)).
 
-| When | Gate | Can it be skipped? |
+The same checks run at three points, and once more by you:
+
+| Check | When it runs | Can it be skipped? |
 |---|---|---|
-| The agent tries to finish | Stop hook | It is fast feedback; local hooks can be switched off |
-| `git commit` | pre-commit | Only with `--no-verify` |
-| Pull request | CI, using the base branch's gate files | No, with branch protection |
-| Merge | You, reading the evidence | Your call |
+| Stop hook | every time the agent says it is done | only if someone turns it off on their machine |
+| pre-commit | every commit | only with `git commit --no-verify` |
+| CI | every pull request, using the rules from `main`, so a pull request cannot loosen them | no, once branch protection is on |
+| You | before merging | your call |
 
 ## Should you use it?
 
