@@ -25,7 +25,9 @@ hooks fall to the same tricks. Three defenses, all installed by this skill:
    to the PR that loosens it; stricter rules apply after they merge. `package.json` cannot be
    protected as a whole (it carries dependency changes), so trusted-check restores only its
    `"scripts"` from the base: a PR that changes `"lint": "tsc --noEmit"` to `"lint": "true"` is
-   still checked with the old script.
+   still checked with the old script. It is the CI entry point: run locally, it rewrites the
+   protected paths in the working tree to the base versions, so run it only in CI or in a
+   throwaway clone.
 2. **No new suppressions** - `scripts/no-suppressions.sh` fails when a change adds
    `eslint-disable`, `@ts-ignore`, `# noqa`, `# type: ignore` and similar. Exceptions go into
    `quality/allowed-suppressions.txt`, which is protected.

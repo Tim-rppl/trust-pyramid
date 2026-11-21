@@ -22,7 +22,12 @@ ask() {
 # only when missing. Never removes or changes what is there. mode: plan | write
 MERGE='
 const fs = require("fs");
-const [from, to, mode] = process.argv.slice(1);
+const [from, to, mode, ...siblings] = process.argv.slice(1);
+// The same host reads hooks from sibling files too (.claude/settings.json and settings.local.json):
+// a Stop hook already registered in one is not added to the other.
+const elsewhere = siblings.filter(file => fs.existsSync(file)).map(file => {
+  try { return [file, JSON.parse(fs.readFileSync(file, "utf8"))]; } catch { return [file, {}]; }
+});
 const src = JSON.parse(fs.readFileSync(from, "utf8"));
 let dst = {};
 if (fs.existsSync(to)) {
@@ -35,7 +40,9 @@ for (const [event, groups] of Object.entries(src.hooks ?? {})) {
   for (const group of groups) for (const hook of group.hooks ?? []) {
     const same = x => x.command === hook.command || (hook.command.includes("scripts/stop-gate.sh") && String(x.command).includes("scripts/stop-gate.sh"));
     const found = dst.hooks[event].flatMap(g => g.hooks ?? []).find(same);
-    if (!found) { dst.hooks[event].push({ ...group, hooks: [hook] }); added.push(`hooks.${event}: ${hook.command}`); }
+    const other = !found && elsewhere.find(([, config]) => (config.hooks?.[event] ?? []).flatMap(g => g.hooks ?? []).some(same));
+    if (other) kept.push(`hooks.${event}: stop-gate is already registered in ${other[0]}, so it is not added here too. To share it with everyone who clones the repository, move it to .claude/settings.json.`);
+    else if (!found) { dst.hooks[event].push({ ...group, hooks: [hook] }); added.push(`hooks.${event}: ${hook.command}`); }
     else if (found.command !== hook.command) kept.push(`hooks.${event} already runs stop-gate (kept as is): ${found.command}`);
   }
 }
@@ -61,6 +68,7 @@ process.exit(added.length ? 0 : 10);
 
 install_one() {
   local from=$1 to=$2 status
+  shift 2  # any further arguments: sibling config files the same host also reads
   [[ -f "$from" ]] || return 0
   echo "$to  (from $from)"
   if ! command -v node >/dev/null 2>&1; then
@@ -68,19 +76,19 @@ install_one() {
     elif ask "Create $to?"; then mkdir -p "$(dirname "$to")"; cp "$from" "$to"; echo "  created"; fi
     return 0
   fi
-  node -e "$MERGE" "$from" "$to" plan; status=$?
+  node -e "$MERGE" "$from" "$to" plan "$@"; status=$?
   if (( status == 10 )); then echo "  ✓ already enabled, nothing to change"; return 0; fi
   (( status == 0 )) || return 0
   if ask "Apply these changes to $to?"; then
-    node -e "$MERGE" "$from" "$to" write >/dev/null
+    node -e "$MERGE" "$from" "$to" write "$@" >/dev/null
     [[ -f "$to.bak" ]] && echo "  applied (previous version saved as $to.bak)" || echo "  applied"
   else
     echo "  skipped"
   fi
 }
 
-install_one quality/install/claude-settings.json .claude/settings.json
-install_one quality/install/claude-settings.local.json .claude/settings.local.json
+install_one quality/install/claude-settings.json .claude/settings.json .claude/settings.local.json
+install_one quality/install/claude-settings.local.json .claude/settings.local.json .claude/settings.json
 install_one quality/install/codex-hooks.json .codex/hooks.json
 
 if [[ -f .githooks/pre-commit && "$(git config core.hooksPath)" != ".githooks" ]]; then

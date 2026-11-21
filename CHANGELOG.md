@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.4.1 - 2026-11-21
+
+Fixes from a field test of the 0.4.0 upgrade on a real project (#23).
+
+- **Adopting a 0.3.0 installation merges for real:** `upgrade.mjs record --from <version>` records
+  the templates of the release the project was installed from (from the skill's git tag, or
+  downloaded from GitHub), so the first upgrade is a three-way merge instead of manual work.
+  `record` no longer claims a project's own file that sits at a template path (such as its own
+  `lint/oxlint.mjs`); it lists it instead.
+- **Rule IDs in the gate log:** `gate-log.sh` reads rule IDs only where linters print them
+  (`plugin(rule):`, `[Error/plugin(rule)]`, a code after `file:line:`), so code quoted in a fix-it
+  message (`t(key)`, `var(--x)`) no longer counts as a rule in `gate-report.mjs`.
+- **One Stop hook registration:** `install-agent-hooks.sh` does not add the Stop hook to
+  `.claude/settings.json` when `.claude/settings.local.json` already has it (or the other way round),
+  and says where it is.
+- **Docs:** `references/upgrade.md` says what conflicts to expect and not to run
+  `trusted-check.sh` locally (it restores the base branch's gate files into the working tree).
+
+### Upgrade notes
+
+- From 0.3.0 or earlier: `record --from 0.3.0`, then upgrade (`references/upgrade.md`, "Adopting an
+  older installation"). This replaces the 0.4.0 advice to record with the current templates.
+- A project that edited its templates can expect one conflict per file that both sides changed,
+  not only in `scripts/check.sh`. In 0.4.0, `stop-gate.sh` stops blocking when it cannot find the
+  repository (it hands over with a visible message), which may show up as one of them.
+- From 0.4.0: nothing to do beyond the upgrade; `scripts/gate-log.sh` and
+  `scripts/install-agent-hooks.sh` are replaced or merged.
+
 ## 0.4.0 - 2026-11-21
 
 **Upgrade mode.** `tools/upgrade.mjs` upgrades the files the skill installed in a project with a

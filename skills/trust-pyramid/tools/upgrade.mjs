@@ -9,12 +9,15 @@
 // files (lint rules, ledgers, smoke flows) are never touched.
 //
 //   node <skill>/tools/upgrade.mjs status  [--project DIR]
-//   node <skill>/tools/upgrade.mjs record  [--project DIR] [--force] [--path P ...]
+//   node <skill>/tools/upgrade.mjs record  [--project DIR] [--force] [--path P ...] [--from VERSION]
 //   node <skill>/tools/upgrade.mjs upgrade [--project DIR] [--dry-run]
 //   node <skill>/tools/upgrade.mjs check   [--project DIR]
 //
 // Exit codes: 0 ok, 1 error, 3 conflicts to resolve (upgrade) or conflict markers left (check).
 // --skill DIR uses another copy of the skill (tests use it to simulate versions).
+// --from VERSION (adopting an installation made before 0.4.0): record the templates of the release
+// the project was installed from as the base, read from the skill's git tag v<VERSION> when the
+// skill is a git checkout, else downloaded from GitHub (TRUST_PYRAMID_RAW overrides the base URL).
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -78,10 +81,47 @@ function saveLock(lock) {
   mkdirSync(dirname(inProject(LOCK)), { recursive: true });
   writeFileSync(inProject(LOCK), JSON.stringify(lock, null, 2) + '\n');
 }
-function lockEntry(entry) {
+const merged = entry => entry.category === 'mechanism' || entry.category === 'tailored';
+function lockEntry(entry, baseText = template(entry)) {
   const record = { template: entry.template, category: entry.category, group: entry.group };
-  if (entry.category === 'mechanism' || entry.category === 'tailored') record.base = encode(template(entry));
+  if (merged(entry)) record.base = encode(baseText);
   return record;
+}
+
+// Did this file come from the template? A project may have its own file at a manifest path (its own
+// lint/oxlint.mjs). Count the template's meaningful lines that are still in the file: setup edits
+// keep at least the comments (a CODEOWNERS with every @OWNER replaced keeps ~16%).
+function fromTemplate(current, base) {
+  const meaningful = text => lines(text).map(line => line.trim().replace(/\s+/g, ' ')).filter(line => line.length >= 12);
+  const wanted = meaningful(base);
+  if (!wanted.length) return true;
+  const have = new Set(meaningful(current));
+  return wanted.filter(line => have.has(line)).length / wanted.length >= 0.1;
+}
+
+// The templates of an earlier release, by template path (missing: not shipped in that release).
+async function templatesAt(release) {
+  const tag = `v${release}`;
+  const found = new Map();
+  const git = (...cmd) => spawnSync('git', ['-C', skill, ...cmd], { encoding: 'utf8' });
+  const prefix = git('rev-parse', '--show-prefix');
+  if (prefix.status === 0 && git('rev-parse', '-q', '--verify', `refs/tags/${tag}`).status === 0) {
+    for (const entry of manifest) {
+      const shown = git('show', `${tag}:./templates/${entry.template}`);
+      if (shown.status === 0) found.set(entry.template, lf(shown.stdout));
+    }
+    if (found.size) return { found, source: `git tag ${tag}` };
+  }
+  const raw = process.env.TRUST_PYRAMID_RAW ?? 'https://raw.githubusercontent.com/Tim-rppl/trust-pyramid';
+  for (const entry of manifest) {
+    const url = `${raw}/${tag}/skills/trust-pyramid/templates/${entry.template}`;
+    const response = await fetch(url);
+    if (response.status === 404) continue;
+    if (!response.ok) throw new Error(`Could not download ${url}: HTTP ${response.status}`);
+    found.set(entry.template, lf(await response.text()));
+  }
+  if (!found.size) throw new Error(`No templates found for release ${release} (tag ${tag}).`);
+  return { found, source: `${raw}/${tag}` };
 }
 function writeFile(path, text, executableLike) {
   const full = inProject(path);
@@ -117,20 +157,37 @@ function status() {
   return 0;
 }
 
-function record() {
+async function record() {
   const only = all('--path');
+  const from = option('--from');
   let lock = loadLock();
   if (lock && !only.length && !flag('--force')) {
     console.error(`${LOCK} already exists. Use "upgrade" to move to a new version, or --force to re-record every file.`);
     return 1;
   }
-  if (!lock || (!only.length && flag('--force'))) lock = { version, shipped: manifest.map(entry => entry.path), files: {} };
-  const entries = manifest.filter(entry => (only.length ? only.includes(entry.path) : existsSync(inProject(entry.path))));
   for (const path of only) if (!manifest.some(entry => entry.path === path)) { console.error(`Not a Trust Pyramid file: ${path}`); return 1; }
-  for (const entry of entries) lock.files[entry.path] = lockEntry(entry);
-  if (!only.length) lock.version = version;
+  const old = from ? await templatesAt(from) : null;
+  const baseOf = entry => (old ? old.found.get(entry.template) : template(entry));
+  if (!lock || (!only.length && flag('--force'))) {
+    lock = { version: from ?? version, shipped: manifest.filter(entry => baseOf(entry) !== undefined).map(entry => entry.path), files: {} };
+  }
+  const skipped = [];
+  const entries = manifest.filter(entry => {
+    if (only.length) return only.includes(entry.path);
+    if (!existsSync(inProject(entry.path))) return false;
+    if (!merged(entry)) return true;
+    const base = baseOf(entry);
+    if (base === undefined) { skipped.push(`${entry.path} (release ${from} did not ship this template)`); return false; }
+    if (!fromTemplate(read(inProject(entry.path)), base)) { skipped.push(`${entry.path} (it does not look like the template: the project's own file?)`); return false; }
+    return true;
+  });
+  for (const entry of entries) lock.files[entry.path] = lockEntry(entry, baseOf(entry) ?? template(entry));
   saveLock(lock);
-  console.log(`Recorded ${entries.length} file(s) at Trust Pyramid ${lock.version} in ${LOCK}. Commit it.`);
+  console.log(`Recorded ${entries.length} file(s) at Trust Pyramid ${lock.version} in ${LOCK}${old ? `, with bases from ${old.source}` : ''}. Commit it.`);
+  if (skipped.length) {
+    console.log('Not recorded (left alone by upgrades). If one did come from Trust Pyramid, add it with --path:');
+    for (const item of skipped) console.log(`  - ${item}`);
+  }
   return 0;
 }
 
@@ -237,7 +294,7 @@ if (!commands[command]) {
   process.exit(1);
 }
 try {
-  process.exit(commands[command]());
+  process.exit(await commands[command]());
 } catch (error) {
   console.error(error.message);
   process.exit(1);
