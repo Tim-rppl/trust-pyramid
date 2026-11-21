@@ -89,6 +89,9 @@ Claude Code users who prefer not to use plugins can copy the same folder to `~/.
 4. Start a new agent session and work as usual. When the agent tries to finish, the checks run; if
    they fail, it keeps fixing.
 
+To move to a new release later, update the skill and ask the agent to "upgrade trust-pyramid in this
+project". Your customizations are kept; see [upgrading](docs/GUIDE.md#upgrading).
+
 At the end of setup the agent shows that every check can fail, runs one feature through the whole
 loop, and reports the results in plain language.
 

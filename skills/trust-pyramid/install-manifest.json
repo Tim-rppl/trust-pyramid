@@ -1,0 +1,287 @@
+{
+  "$comment": "Where each template is installed in a project and who owns it. mechanism: replaced on upgrade (three-way merged if the project changed it). tailored: three-way merged. content: the project's own, never touched. append: lines appended to an existing file. A file is offered on upgrade only if its group is installed.",
+  "files": [
+    {
+      "template": "scripts/check.sh",
+      "path": "scripts/check.sh",
+      "category": "tailored",
+      "group": "core"
+    },
+    {
+      "template": "scripts/stop-gate.sh",
+      "path": "scripts/stop-gate.sh",
+      "category": "mechanism",
+      "group": "core"
+    },
+    {
+      "template": "scripts/hook-status.sh",
+      "path": "scripts/hook-status.sh",
+      "category": "mechanism",
+      "group": "core"
+    },
+    {
+      "template": "scripts/install-agent-hooks.sh",
+      "path": "scripts/install-agent-hooks.sh",
+      "category": "mechanism",
+      "group": "core"
+    },
+    {
+      "template": "scripts/gate-log.sh",
+      "path": "scripts/gate-log.sh",
+      "category": "mechanism",
+      "group": "core"
+    },
+    {
+      "template": "scripts/gate-report.mjs",
+      "path": "scripts/gate-report.mjs",
+      "category": "mechanism",
+      "group": "core"
+    },
+    {
+      "template": "scripts/trusted-check.sh",
+      "path": "scripts/trusted-check.sh",
+      "category": "mechanism",
+      "group": "core"
+    },
+    {
+      "template": "scripts/no-suppressions.sh",
+      "path": "scripts/no-suppressions.sh",
+      "category": "mechanism",
+      "group": "core"
+    },
+    {
+      "template": "githooks/pre-commit",
+      "path": ".githooks/pre-commit",
+      "category": "mechanism",
+      "group": "core"
+    },
+    {
+      "template": "claude/settings.json",
+      "path": "quality/install/claude-settings.json",
+      "category": "tailored",
+      "group": "claude"
+    },
+    {
+      "template": "claude/settings.local.json",
+      "path": "quality/install/claude-settings.local.json",
+      "category": "tailored",
+      "group": "claude"
+    },
+    {
+      "template": "codex/hooks.json",
+      "path": "quality/install/codex-hooks.json",
+      "category": "tailored",
+      "group": "codex"
+    },
+    {
+      "template": "quality/protected-paths.txt",
+      "path": "quality/protected-paths.txt",
+      "category": "tailored",
+      "group": "core"
+    },
+    {
+      "template": "quality/allowed-suppressions.txt",
+      "path": "quality/allowed-suppressions.txt",
+      "category": "content",
+      "group": "core"
+    },
+    {
+      "template": "quality/rule-candidates.md",
+      "path": "quality/rule-candidates.md",
+      "category": "content",
+      "group": "core"
+    },
+    {
+      "template": "github/workflows/quality.yml",
+      "path": ".github/workflows/quality.yml",
+      "category": "tailored",
+      "group": "core"
+    },
+    {
+      "template": "github/pull_request_template.md",
+      "path": ".github/pull_request_template.md",
+      "category": "tailored",
+      "group": "core"
+    },
+    {
+      "template": "github/CODEOWNERS",
+      "path": ".github/CODEOWNERS",
+      "category": "tailored",
+      "group": "core"
+    },
+    {
+      "template": "AGENTS.md",
+      "path": "AGENTS.md",
+      "category": "tailored",
+      "group": "core"
+    },
+    {
+      "template": "gitignore-additions.txt",
+      "path": ".gitignore",
+      "category": "append",
+      "group": "core"
+    },
+    {
+      "template": "gitattributes",
+      "path": ".gitattributes",
+      "category": "append",
+      "group": "core"
+    },
+    {
+      "template": "lint/oxlint.mjs",
+      "path": "lint/oxlint.mjs",
+      "category": "mechanism",
+      "group": "lint-js"
+    },
+    {
+      "template": "lint/project-plugin.mjs",
+      "path": "lint/project-plugin.mjs",
+      "category": "content",
+      "group": "lint-js"
+    },
+    {
+      "template": "lint/project-plugin.test.mjs",
+      "path": "lint/project-plugin.test.mjs",
+      "category": "content",
+      "group": "lint-js"
+    },
+    {
+      "template": "lint/fixtures/compliant.tsx",
+      "path": "lint/fixtures/compliant.tsx",
+      "category": "content",
+      "group": "lint-js"
+    },
+    {
+      "template": "lint/fixtures/violations.tsx",
+      "path": "lint/fixtures/violations.tsx",
+      "category": "content",
+      "group": "lint-js"
+    },
+    {
+      "template": "lint/fixtures/oxlintrc.json",
+      "path": "lint/fixtures/oxlintrc.json",
+      "category": "content",
+      "group": "lint-js"
+    },
+    {
+      "template": "lint/python/project_rules.py",
+      "path": "lint/project_rules.py",
+      "category": "content",
+      "group": "lint-python"
+    },
+    {
+      "template": "lint/python/fixtures/compliant.py",
+      "path": "lint/fixtures/compliant.py",
+      "category": "content",
+      "group": "lint-python"
+    },
+    {
+      "template": "lint/python/fixtures/violations.py",
+      "path": "lint/fixtures/violations.py",
+      "category": "content",
+      "group": "lint-python"
+    },
+    {
+      "template": "verify/app.mjs",
+      "path": "verify/app.mjs",
+      "category": "mechanism",
+      "group": "verify"
+    },
+    {
+      "template": "verify/fake-openai.mjs",
+      "path": "verify/fake-openai.mjs",
+      "category": "mechanism",
+      "group": "verify"
+    },
+    {
+      "template": "verify/verify.config.mjs",
+      "path": "verify/verify.config.mjs",
+      "category": "tailored",
+      "group": "verify"
+    },
+    {
+      "template": "verify/package.json",
+      "path": "verify/package.json",
+      "category": "tailored",
+      "group": "verify"
+    },
+    {
+      "template": "verify/smoke.mjs",
+      "path": "verify/smoke.mjs",
+      "category": "content",
+      "group": "verify"
+    },
+    {
+      "template": "verify/feature-map.md",
+      "path": "verify/feature-map.md",
+      "category": "content",
+      "group": "verify"
+    },
+    {
+      "template": "github/workflows/quality-smoke.yml",
+      "path": ".github/workflows/quality-smoke.yml",
+      "category": "tailored",
+      "group": "verify"
+    },
+    {
+      "template": "scripts/review-gate.mjs",
+      "path": "scripts/review-gate.mjs",
+      "category": "mechanism",
+      "group": "reviewer"
+    },
+    {
+      "template": "quality/reviewer-prompt.md",
+      "path": "quality/reviewer-prompt.md",
+      "category": "tailored",
+      "group": "reviewer"
+    },
+    {
+      "template": "quality/review.config.json",
+      "path": "quality/review.config.json",
+      "category": "tailored",
+      "group": "reviewer"
+    },
+    {
+      "template": "quality/review-dispositions.json",
+      "path": "quality/review-dispositions.json",
+      "category": "content",
+      "group": "reviewer"
+    },
+    {
+      "template": "quality/review-log.md",
+      "path": "quality/review-log.md",
+      "category": "content",
+      "group": "reviewer"
+    },
+    {
+      "template": "claude/agents/quality-reviewer.md",
+      "path": ".claude/agents/quality-reviewer.md",
+      "category": "tailored",
+      "group": "reviewer"
+    },
+    {
+      "template": "github/workflows/quality-review.yml",
+      "path": ".github/workflows/quality-review.yml",
+      "category": "tailored",
+      "group": "reviewer"
+    },
+    {
+      "template": "github-text/check-github-text.mjs",
+      "path": "scripts/check-github-text.mjs",
+      "category": "tailored",
+      "group": "github-text"
+    },
+    {
+      "template": "github-text/commit-msg",
+      "path": ".githooks/commit-msg",
+      "category": "mechanism",
+      "group": "github-text"
+    },
+    {
+      "template": "github-text/github-text.yml",
+      "path": ".github/workflows/github-text.yml",
+      "category": "tailored",
+      "group": "github-text"
+    }
+  ]
+}

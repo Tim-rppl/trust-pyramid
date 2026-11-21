@@ -1,7 +1,7 @@
 {
   "name": "trust-pyramid",
   "description": "Quality gates where coding agents prove their own work: architecture constraints, fix-it lint rules, runtime verification, an enforced evidence-based AI reviewer, and unskippable hooks and CI.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": { "name": "Tim-rppl" },
   "homepage": "https://github.com/Tim-rppl/trust-pyramid",
   "repository": "https://github.com/Tim-rppl/trust-pyramid",

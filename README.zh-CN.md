@@ -81,6 +81,8 @@ mkdir -p ~/.agents/skills && cp -R trust-pyramid/skills/trust-pyramid ~/.agents/
 
 4. 开一个新的 agent 会话，照常工作。agent 想结束时会自动跑检查，没通过就继续修。
 
+以后有新版本时，先更新 skill，再对 agent 说"upgrade trust-pyramid in this project"即可升级，你为项目做的定制会保留，详见[升级说明](docs/GUIDE.md#upgrading)（英文）。
+
 搭建结束时，agent 会证明每一项检查确实能拦住错误，用一个小功能走完整个流程，再用大白话汇报结果。
 
 ## 装好之后会怎样

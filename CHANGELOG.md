@@ -1,6 +1,23 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 - 2026-11-21
+
+**Upgrade mode.** `tools/upgrade.mjs` upgrades the files the skill installed in a project with a
+three-way merge per file, keeping the project's changes. Setup now records
+`quality/trust-pyramid.lock.json`; `install-manifest.json` says where each template goes and
+whether it is mechanism (replaced), tailored (merged), content (never touched) or append.
+Instructions: `references/upgrade.md`.
+
+### Upgrade notes
+
+- Projects set up with 0.3.0 or earlier have no lock file. Ask the agent to upgrade; it runs
+  `upgrade.mjs record` once to adopt the current files and brings mechanism scripts up to date by
+  hand. New in this release and worth installing: `scripts/hook-status.sh`, the updated
+  `scripts/install-agent-hooks.sh`, `stop-gate.sh` and `.githooks/pre-commit`, the first rule in
+  `AGENTS.md`, and the npm `prepare` script.
+- Expect one conflict in `scripts/check.sh`: 0.4.0 marks the `CHECKS` table as a project section
+  (`trust-pyramid:project-start checks`). Keep the project's table between the new markers; later
+  upgrades then never conflict there.
 
 Fixes from installing the skill on a real project on Windows 11 (issues #1-#15).
 

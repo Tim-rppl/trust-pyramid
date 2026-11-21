@@ -7,6 +7,7 @@ Details behind the [README](../README.md). The agent's own instructions are in
 - [What gets added to your project](#what-gets-added-to-your-project)
 - [The AI reviewer](#the-ai-reviewer)
 - [Daily use](#daily-use)
+- [Upgrading](#upgrading)
 - [Cost and limits](#cost-and-limits)
 - [Repository layout](#repository-layout)
 
@@ -66,6 +67,28 @@ Run the quality reviewer on this branch, prove or reject each finding, and summa
 # Weekly
 Sweep the whole repository with the reviewer and add the top 3 rule candidates to quality/rule-candidates.md.
 ```
+
+## Upgrading
+
+Update the skill (Claude Code: `/plugin marketplace update`; Codex: `git pull` and copy the skill
+folder again), then ask the agent in your project:
+
+```text
+Upgrade trust-pyramid in this project.
+```
+
+The agent works on a new branch and runs a three-way merge for each installed file, the same kind
+of merge git uses:
+
+- files you never changed are replaced with the new version;
+- your changes and the new version's changes are combined when they touch different lines;
+- when both changed the same lines, the agent resolves it and explains each case in the pull
+  request; nothing is overwritten silently;
+- your own lint rules, ledgers and smoke flows are never touched.
+
+You review and merge the pull request. Projects set up before version 0.4.0 run one extra step the
+first time (the agent adopts the current files as the starting point). Details:
+[references/upgrade.md](../skills/trust-pyramid/references/upgrade.md).
 
 ## Cost and limits
 
