@@ -42,6 +42,9 @@ examples there never conflict. Keep the markers when editing these files.
    show the user what will change). Exit code 3 means conflicts.
 4. Resolve every conflict block. Keep the project's intent and the template's fix; when they truly
    disagree, prefer the project's version and say so. Then `upgrade.mjs check` must pass.
+   Expect a conflict in every file where both the project and the release changed the same lines.
+   A project that edited its templates, as setup asks, can get several (a field test from 0.3.0 to
+   0.4.0 had eight, one block each). Each is a decision to explain, not an error.
 5. Act on the rest of the report:
    - **New templates to install and adapt**: install them as in the matching setup phase, then
      `upgrade.mjs record --path <path>`.
@@ -51,7 +54,9 @@ examples there never conflict. Keep the markers when editing these files.
 6. If `quality/install/*` changed, tell the user to run `bash scripts/install-agent-hooks.sh`
    after merging (agents cannot write their own hook config), then start a new session.
 7. Run every check (`bash scripts/check.sh --all`, the smoke flow) and `bash scripts/hook-status.sh`.
-   Commit, including `quality/trust-pyramid.lock.json`.
+   Do not run `scripts/trusted-check.sh` in the worktree: it is the CI entry point and restores the
+   base branch's gate files into the working tree, replacing the upgraded ones. CI runs it on the
+   pull request. Commit, including `quality/trust-pyramid.lock.json`.
 8. Open a pull request. In its description, in plain language: the version change, what was
    replaced, merged and added, and **each conflict: what the project had, what the new version
    has, and what you kept and why**. CI notes that protected files changed and checks with the
@@ -59,11 +64,23 @@ examples there never conflict. Keep the markers when editing these files.
 
 ## Adopting an older installation
 
-A project set up before upgrades were recorded has no lock file. Run
-`node <skill>/tools/upgrade.mjs record --project .` once: it records the current templates as the
-base for every installed file. Compare the project's mechanism files with this skill's templates
-and bring them up to date by hand where they differ (the base cannot tell old template text from
-project edits). Commit the lock file; later releases then upgrade normally.
+A project set up before upgrades were recorded (0.3.0 or earlier) has no lock file. Record it
+against the release it was installed from, so the first upgrade is a real three-way merge:
+
+```bash
+node <skill>/tools/upgrade.mjs record --project . --from 0.3.0
+```
+
+`--from` reads that release's templates from the skill's git tag (`v0.3.0`), or downloads them from
+GitHub when the skill is not a git checkout. To find the release: the project's setup commit or
+`docs/QUALITY.md` often names it; otherwise compare a mechanism file such as
+`scripts/trusted-check.sh` with `git show v<version>:skills/trust-pyramid/templates/scripts/trusted-check.sh`
+for each tag and take the closest match. Then upgrade as above.
+
+`record` leaves out files that sit at a template path but do not look like the template (fewer
+than 10% of the template's lines remain): usually the project's own file, such as its own
+`lint/oxlint.mjs`. Upgrades then never touch them. If one did come from Trust Pyramid, add it with
+`record --path <path>`.
 
 ## For maintainers of this skill
 

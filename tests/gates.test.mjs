@@ -139,6 +139,17 @@ test('install-agent-hooks merges into existing configs, keeps what is there, and
   assert.equal(stopCommands(json(dir, '.claude/settings.json')).length, 1, 'no duplicate Stop hook');
 });
 
+test('install-agent-hooks does not register the Stop hook in both Claude settings files', () => {
+  const { dir, sh } = repoWithStagedHooks();
+  writeFiles(dir, { '.claude/settings.local.json': JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: 'bash "$CLAUDE_PROJECT_DIR/scripts/stop-gate.sh"' }] }] } }) });
+  const install = sh('bash scripts/install-agent-hooks.sh --yes');
+  assert.equal(install.status, 0, install.stdout + install.stderr);
+  assert.match(install.stdout, /already registered in \.claude\/settings\.local\.json, so it is not added here too/);
+  assert.deepEqual(stopCommands(json(dir, '.claude/settings.json')), [], 'the shared file does not get a second copy');
+  assert.equal(stopCommands(json(dir, '.claude/settings.local.json')).length, 1);
+  assert.match(sh('bash scripts/hook-status.sh').stdout, /Claude Code Stop hook: registered in \.claude\/settings\.local\.json/);
+});
+
 test('install-agent-hooks changes nothing without a yes, and an existing stop-gate entry is kept', () => {
   const { dir, sh } = repoWithStagedHooks();
   const before = readFileSync(join(dir, '.claude/settings.json'), 'utf8');
@@ -299,18 +310,18 @@ test('gate interceptions are logged per gate with rule IDs, and gate-report summ
   copyTemplate('scripts/gate-log.sh', dir);
   copyTemplate('scripts/gate-report.mjs', dir);
   const test = join(dir, 'app/test.sh');
-  writeFileSync(test, readFileSync(test, 'utf8').replace('echo "not ok - value"', 'echo "not ok - value"\necho "app/x.tsx:4:18: UI text is not translated [Error/project(no-raw-ui-text)]"'));
+  writeFileSync(test, readFileSync(test, 'utf8').replace('echo "not ok - value"', 'echo "not ok - value"\necho "app/x.tsx:4:18: UI text is not translated. Use t(key) and var(--color-text) [Error/project(no-raw-ui-text)]"\necho "  x eslint(no-unused-vars): expected String(value) to be used"\necho "app/y.py:3: TP001 read env vars in config.py, not via os.environ(KEY)"\necho "Dates use ISO8601 strings"'));
   writeFiles(dir, { 'app/value.txt': 'broken\n' });
   assert.equal(run(dir, 'bash scripts/stop-gate.sh').status, 2);
   assert.equal(run(dir, 'bash scripts/check.sh').status, 1, 'a manual run is not an interception');
   const summary = join(dir, 'summary.md');
   const ci = spawnSync('bash', ['-c', 'TRUST_GATE=ci bash scripts/check.sh --all'], { cwd: dir, encoding: 'utf8', env: { ...process.env, GITHUB_STEP_SUMMARY: summary } });
   assert.equal(ci.status, 1);
-  assert.match(readFileSync(summary, 'utf8'), /Gate \*\*ci\*\* blocked: app: value is ok \(project\(no-raw-ui-text\)\)/);
+  assert.match(readFileSync(summary, 'utf8'), /Gate \*\*ci\*\* blocked: app: value is ok \(TP001 eslint\(no-unused-vars\) project\(no-raw-ui-text\)\)/);
 
   const log = readFileSync(join(dir, '.quality-state/gate-log.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
   assert.deepEqual(log.map(entry => entry.gate), ['stop-hook', 'ci']);
-  assert.deepEqual(log[0].rules, ['project(no-raw-ui-text)']);
+  assert.deepEqual(log[0].rules, ['TP001', 'eslint(no-unused-vars)', 'project(no-raw-ui-text)'], 'code quoted in messages is not a rule ID');
   assert.equal(log[0].check, 'app: value is ok');
   assert.match(log[0].date, /^\d{4}-\d{2}-\d{2}T/);
 

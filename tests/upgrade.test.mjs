@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { join, relative } from 'node:path';
 import test from 'node:test';
 import { ROOT, SKILL, tempDir, writeFiles } from './helpers.mjs';
@@ -124,13 +125,18 @@ test('upgrade --dry-run reports without writing anything', () => {
 
 test('record adopts an existing installation once, and refuses to overwrite the lock by accident', () => {
   const dir = tempDir();
-  writeFiles(dir, { 'scripts/check.sh': 'customized\n', 'quality/rule-candidates.md': '# mine\n' });
+  writeFiles(dir, {
+    'scripts/check.sh': read(SKILL, 'templates/scripts/check.sh') + '# customized\n',
+    'quality/rule-candidates.md': '# mine\n',
+    'lint/oxlint.mjs': '// the project\'s own runner, not the template\nconsole.log("lint all the things");\n',
+  });
   const run = (...extra) => spawnSync(process.execPath, [TOOL, ...extra, '--project', dir], { encoding: 'utf8' });
   assert.equal(run('status').status, 1);
   assert.equal(run('upgrade').status, 1, 'upgrading without a lock asks to record first');
   const recorded = run('record');
   assert.equal(recorded.status, 0, recorded.stderr);
   assert.match(recorded.stdout, /Recorded 2 file\(s\)/);
+  assert.match(recorded.stdout, /Not recorded[^]*lint\/oxlint\.mjs \(it does not look like the template/, 'a project\'s own file at a template path is left alone');
   const lock = JSON.parse(read(dir, 'quality/trust-pyramid.lock.json'));
   assert.equal(lock.files['scripts/check.sh'].category, 'tailored');
   assert.equal(Buffer.from(lock.files['scripts/check.sh'].base, 'base64').toString(), read(SKILL, 'templates/scripts/check.sh'));
@@ -152,4 +158,65 @@ test('the install manifest covers every template exactly once, and versions agre
   const version = read(SKILL, 'VERSION').trim();
   assert.equal(JSON.parse(read(ROOT, '.claude-plugin/plugin.json')).version, version);
   assert.match(read(ROOT, 'CHANGELOG.md'), new RegExp(`^## ${version.replace(/\./g, '\\.')} - \\d{4}-\\d\\d-\\d\\d$`, 'm'));
+});
+
+// A project installed from an older release, adopted with --from: the old templates become the base,
+// so the first upgrade merges instead of leaving everything to manual work.
+function adoptFixture() {
+  const old = oldSkill();
+  const dir = tempDir();
+  const manifest = JSON.parse(read(old, 'install-manifest.json')).files;
+  for (const path of ['scripts/stop-gate.sh', 'scripts/check.sh', 'AGENTS.md']) {
+    writeFiles(dir, { [path]: read(old, join('templates', manifest.find(entry => entry.path === path).template)) });
+  }
+  writeFileSync(join(dir, 'AGENTS.md'), read(dir, 'AGENTS.md') + '- My project rule.\n');
+  return { old, dir };
+}
+function expectMergedUpgrade(dir) {
+  const result = spawnSync(process.execPath, [TOOL, 'upgrade', '--project', dir], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /Trust Pyramid 0\.3\.9 ->/);
+  assert.match(result.stdout, /Replaced[^]*scripts\/stop-gate\.sh/);
+  assert.equal(read(dir, 'scripts/stop-gate.sh'), read(SKILL, 'templates/scripts/stop-gate.sh'));
+  const agents = read(dir, 'AGENTS.md');
+  assert.match(agents, /- My project rule\./, 'the project change is kept');
+  assert.doesNotMatch(agents, /OLD first rule/, 'the change between releases is merged in');
+}
+
+test('record --from takes the base from the skill\'s git tag of that release', () => {
+  const { old, dir } = adoptFixture();
+  const repo = tempDir();
+  const git = (...cmd) => spawnSync('git', cmd, { cwd: repo, encoding: 'utf8' });
+  git('init', '-q', '-b', 'main'); git('config', 'user.email', 't@example.test'); git('config', 'user.name', 't'); git('config', 'core.autocrlf', 'false');
+  cpSync(old, join(repo, 'skills/trust-pyramid'), { recursive: true });
+  git('add', '-A'); git('commit', '-q', '-m', 'old'); git('tag', 'v0.3.9');
+  cpSync(SKILL, join(repo, 'skills/trust-pyramid'), { recursive: true });
+  git('add', '-A'); git('commit', '-q', '-m', 'new');
+  const skill = join(repo, 'skills/trust-pyramid');
+  const recorded = spawnSync(process.execPath, [TOOL, 'record', '--project', dir, '--skill', skill, '--from', '0.3.9'], { encoding: 'utf8' });
+  assert.equal(recorded.status, 0, recorded.stderr);
+  assert.match(recorded.stdout, /at Trust Pyramid 0\.3\.9 .*with bases from git tag v0\.3\.9/);
+  expectMergedUpgrade(dir);
+});
+
+test('record --from downloads the release when the skill is not a git checkout', async () => {
+  const { old, dir } = adoptFixture();
+  const server = createServer((request, response) => {
+    const match = /^\/v0\.3\.9\/skills\/trust-pyramid\/templates\/(.+)$/.exec(request.url);
+    const file = match && join(old, 'templates', decodeURIComponent(match[1]));
+    if (file && existsSync(file)) response.end(readFileSync(file));
+    else { response.statusCode = 404; response.end(); }
+  });
+  await new Promise(done => server.listen(0, '127.0.0.1', done));
+  try {
+    const env = { ...process.env, TRUST_PYRAMID_RAW: `http://127.0.0.1:${server.address().port}` };
+    const child = await import('node:child_process');
+    const recorded = await new Promise(done => child.execFile(process.execPath, [TOOL, 'record', '--project', dir, '--from', '0.3.9'], { env, encoding: 'utf8' }, (error, stdout, stderr) => done({ status: error ? error.code : 0, stdout, stderr })));
+    assert.equal(recorded.status, 0, recorded.stderr);
+    assert.match(recorded.stdout, /with bases from http:\/\/127\.0\.0\.1:\d+\/v0\.3\.9/);
+    assert.doesNotMatch(recorded.stdout, /hook-status/, 'templates the old release did not ship are not recorded');
+  } finally {
+    server.close();
+  }
+  expectMergedUpgrade(dir);
 });

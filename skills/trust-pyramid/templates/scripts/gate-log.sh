@@ -4,13 +4,19 @@
 # Appends one JSON line to .quality-state/gate-log.jsonl (local, gitignored):
 #   {"date":"2026-11-21T10:00:00Z","gate":"pre-commit","check":"web: lint","rules":["project(no-raw-ui-text)"]}
 # and, in GitHub Actions, a line to the job summary. scripts/gate-report.mjs summarizes the log.
-# Rule IDs are taken from the output: plugin(rule) as printed by oxlint/ESLint, and codes like TP001.
+# Rule IDs are taken only from where linters print them, so code quoted in a fix-it message (t(key),
+# var(--x)) is not mistaken for a rule: "plugin(rule):" (oxlint default), "[Error/plugin(rule)]"
+# (oxlint unix format), and a code after file:line[:col]: such as "app/x.py:3: TP001" or "E501".
 cd "$(git rev-parse --show-toplevel)" || exit 0
 label=${1:?usage: gate-log.sh <check label> < failure output}
 gate=${TRUST_GATE:-manual}
 output=$(cat)
 
-rules=$(grep -oE '[A-Za-z0-9_@-]+\([A-Za-z0-9_/-]+\)|\b[A-Z]{1,4}[0-9]{3,4}\b' <<<"$output" | sort -u)
+rules=$( {
+  grep -oE '[A-Za-z0-9_@-]+\([A-Za-z0-9_/-]+\):' <<<"$output" | sed 's/:$//'
+  grep -oE '\[[A-Za-z]+/[A-Za-z0-9_@-]+\([A-Za-z0-9_/-]+\)\]' <<<"$output" | sed -E 's|^\[[A-Za-z]+/||; s|\]$||'
+  grep -oE ':[0-9]+(:[0-9]+)?: [A-Z]{1,4}[0-9]{3,4}( |$)' <<<"$output" | sed -E 's/^.*: //; s/ $//'
+} | LC_ALL=C sort -u)
 esc() { local s=${1//\/\\}; s=${s//\"/\\\"}; printf '%s' "$s"; }
 json_rules=""
 while IFS= read -r rule; do
