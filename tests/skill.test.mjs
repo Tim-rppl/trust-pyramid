@@ -127,3 +127,20 @@ test('setup cost figures are the same in SKILL.md, README and the benchmark', ()
     assert.match(text, /24-32 min/);
   }
 });
+
+test('the installed project carries the rule workflow, and nothing tells agents to wait for a maintainer (#50)', () => {
+  const manifest = JSON.parse(readFileSync(join(SKILL, 'install-manifest.json'), 'utf8')).files.map(entry => entry.path);
+  const agents = readFileSync(join(SKILL, 'templates/AGENTS.md'), 'utf8');
+  for (const [, path] of agents.matchAll(/\b((?:quality|scripts|verify)\/[\w./-]+\.(?:md|json|mjs|sh))/g)) {
+    assert.ok(manifest.includes(path), `AGENTS.md points to ${path}, which setup does not install`);
+  }
+  assert.match(agents, /quality\/ADD_RULE\.md/);
+  assert.match(agents, /never a reason to wait for a maintainer/);
+  const addRule = readFileSync(join(SKILL, 'templates/quality/ADD_RULE.md'), 'utf8');
+  assert.match(addRule, /git worktree add/);
+  assert.match(addRule, /bash scripts\/check\.sh --setup/);
+  assert.match(addRule, /absolute paths/i, 'relative paths after cd are refused by the main checkout\'s deny list (#46)');
+  const ledger = readFileSync(join(SKILL, 'templates/quality/rule-candidates.md'), 'utf8');
+  assert.match(ledger, /"The file is protected" or "a\s+maintainer has to add it" is never a reason/);
+  assert.doesNotMatch(ledger, /trust-pyramid `add-rule` reference/, 'the ledger must point to a file the project has');
+});

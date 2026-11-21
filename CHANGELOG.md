@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.5.0 - 2026-11-22
+
+The rule set now grows on its own. Field tests showed that installed projects gained no rules after
+setup: the workflow for adding one lived only in the skill, and the ledger told agents to wait for a
+maintainer (#50). Also fixes from the 0.4.4 field test (#43-#49).
+
+- **The agent adds rules itself (#50):** a new project file, `quality/ADD_RULE.md`, describes the
+  whole route: separate worktree, `check.sh --setup`, absolute paths, rule plus fixtures plus test,
+  and a pull request the user approves. `AGENTS.md` points to it and says a protected file is never
+  a reason to wait for a maintainer. The ledger template lists the valid reasons for "not a rule
+  yet". `hook-status.sh` (run at the start of each session) and `gate-report.mjs` list ledger rows at
+  `Seen` 2 or more. A confirmed reviewer finding's `rule_candidate` goes into a rule or the ledger.
+  The setup report tells the user that rule pull requests will come and that their part is to
+  approve them.
+- **Worktree paths (#46):** `ADD_RULE.md`, `upgrade.md` and `hook-status.sh` say to use absolute
+  paths in a worktree: permission rules check relative paths against the session's directory, where
+  the deny list refuses gate files.
+- **Only real interceptions are logged (#49):** manual Stop-hook runs no longer write to the gate
+  log, and `TRUST_GATE_LOG=0` keeps probes out of it.
+- **PR text is checked before the PR is opened (#48):** with the GitHub text pack installed,
+  `AGENTS.md` asks for the local `--pr` check before `gh pr create` or `gh pr edit`.
+- **Setup stops count "in a row" (#43):** a real failure or a hand-over resets the count, so a later
+  fresh worktree is blocked with "setup needed" instead of ending the turn unchecked.
+- **Missing dependencies hold up only the commits that need them (#44):** a `SETUP` entry can name
+  the path prefixes that need it (`<path>|<install>|<prefixes>`; without prefixes: every change).
+  Pre-commit reports exit 3 as "install the dependencies first", not "fix the failures".
+- **The Stop hook reads the transcript only when needed (#47):** with no other worktree changed it
+  does not read it at all; otherwise a fixed-string filter on the directory names comes first. It no
+  longer writes a copy to `.quality-state/`. About 4x faster on a 10 MB transcript.
+- **`<worktree>.bak` no longer selects the worktree (#45);** a sentence ending in the path still does.
+
+### Upgrade notes
+
+- Changed and merged by the upgrade: `scripts/stop-gate.sh`, `scripts/check.sh`,
+  `scripts/hook-status.sh`, `scripts/gate-log.sh`, `scripts/gate-report.mjs`, `.githooks/pre-commit`,
+  `AGENTS.md`. New: `quality/ADD_RULE.md` (listed under "New templates to install"; install it as is).
+- `quality/rule-candidates.md` is the project's own file, so the upgrade does not change it. Replace
+  its header with the new template's, and rewrite every row whose reason is "protected" or whose plan
+  waits for a maintainer: give the real reason, or, at `Seen` 2 or more, turn it into a rule after the
+  upgrade (`quality/ADD_RULE.md`).
+- Optional: add path prefixes to `SETUP` entries, so docs-only commits are not held up.
+- Older entries in `.quality-state/gate-log.jsonl` include manual and probe runs. Delete the file to
+  start counting afresh.
+
 ## 0.4.4 - 2026-11-21
 
 Fixes from a field test of 0.4.3 (#38-#41).

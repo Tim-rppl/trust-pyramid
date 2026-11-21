@@ -1,5 +1,6 @@
-// Summarizes .quality-state/gate-log.jsonl: what the gates actually caught, per week.
-//   node scripts/gate-report.mjs [--log <file>] [--rules <id,id,...>]
+// Summarizes .quality-state/gate-log.jsonl: what the gates actually caught, per week, and lists the
+// rule candidates (quality/rule-candidates.md) that reached Seen 2 and wait to become rules.
+//   node scripts/gate-report.mjs [--log <file>] [--rules <id,id,...>] [--candidates <file>]
 // --rules lists the rule IDs you expect (e.g. every rule in lint/), so rules that never fired show up.
 // Output: blocks per week and gate, blocks per rule, rules that fired in more than one week
 // (the mistake keeps coming back: improve the error message or design it away), rules never fired.
@@ -13,6 +14,21 @@ export function isoWeek(date) {
   const yearStart = new Date(Date.UTC(day.getUTCFullYear(), 0, 1));
   const week = Math.ceil(((day - yearStart) / 86400000 + 1) / 7);
   return `${day.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+/** Ledger rows with Seen >= 2, from the first table that has a "Seen" column: [{ kind, seen }]. */
+export function waitingCandidates(text) {
+  const rows = [];
+  let col = -1;
+  for (const line of text.split('\n')) {
+    if (!/^\s*\|/.test(line)) { if (col >= 0) break; continue; }
+    const cells = line.split('|').map(cell => cell.trim());
+    if (col < 0) { col = cells.findIndex(cell => /^seen/i.test(cell)); continue; }
+    if (/^\s*\|[\s:|-]+$/.test(line)) continue;
+    const seen = Number.parseInt(cells[col] ?? '', 10);
+    if (seen >= 2) rows.push({ kind: cells[col > 1 ? 1 : 0], seen });
+  }
+  return rows;
 }
 
 export function summarize(entries, knownRules = []) {
@@ -58,6 +74,12 @@ function main() {
     console.log(`\nRepeated across weeks: ${report.repeated.join(', ') || 'none'}`);
   }
   if (known.length) console.log(`Never fired: ${report.neverFired.join(', ') || 'none'}`);
+  const ledger = option('--candidates') ?? 'quality/rule-candidates.md';
+  const waiting = existsSync(ledger) ? waitingCandidates(readFileSync(ledger, 'utf8')) : [];
+  if (waiting.length) {
+    console.log(`\nRule candidates seen twice or more, waiting for the agent to add them as rules (quality/ADD_RULE.md):`);
+    for (const { kind, seen } of waiting) console.log(`  ${String(seen).padStart(3)}  ${kind}`);
+  }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) main();

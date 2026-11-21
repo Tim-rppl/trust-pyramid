@@ -58,8 +58,8 @@ so Trust Pyramid enforces it:
 ## Daily use
 
 ```text
-# The same mistake happened again
-Turn this into a rule using trust-pyramid's add-rule process: <the mistake>.
+# A mistake you want stopped for good (the agent also does this on its own when a mistake repeats)
+Turn this into a rule as quality/ADD_RULE.md describes: <the mistake>.
 
 # Before a pull request
 Run the quality reviewer on this branch, prove or reject each finding, and summarize in plain language.

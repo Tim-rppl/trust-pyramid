@@ -264,17 +264,20 @@ Nothing is switched off in the main checkout, and the gate change gets a human r
 ## Gate log: what the gates actually caught
 
 With `TRUST_GATE` set, `scripts/check.sh` records every failing check through
-`scripts/gate-log.sh`: the Stop hook sets `stop-hook`, pre-commit `pre-commit`, and the CI `check`
+`scripts/gate-log.sh`: the Stop hook sets `stop-hook` (only when the host started it), pre-commit `pre-commit`, and the CI `check`
 job `ci`; trusted-check also records new suppression comments. Each block becomes one line in
 `.quality-state/gate-log.jsonl` (date, gate, check label, rule IDs found in the output, such as
 `project(no-raw-ui-text)` or `TP001`), and in CI a line in the job summary. Manual runs are not
-logged. The local log is per machine and gitignored; CI's record is the job summary. Checks that
+logged, and `TRUST_GATE_LOG=0` turns logging off for probes that simulate a gate (proving a check
+fires), so the report counts real interceptions only. The local log is per machine and gitignored; CI's record is the job summary. Checks that
 fail in a linked worktree are logged in the main checkout's log, with a `worktree` field, so the
 report includes them and they survive `git worktree remove`.
 
 `node scripts/gate-report.mjs [--rules <id,id,...>]` prints blocks per week and gate, blocks per
-rule, rules that fired in more than one week, and (with `--rules`) rules that never fired. This
-answers the question users ask after setup: do the gates pay for themselves?
+rule, rules that fired in more than one week, (with `--rules`) rules that never fired, and the rows
+of `quality/rule-candidates.md` at `Seen` 2 or more, which wait for the agent to add them as rules.
+This answers the question users ask after setup: do the gates pay for themselves?
+`scripts/hook-status.sh`, which the agent runs at the start of each session, lists the same rows.
 
 ## Optional rule pack: text that lands on GitHub
 
@@ -296,6 +299,10 @@ robot emoji). Offer it in Phase 0; install only on request:
   string stays allowed.
 - The workflow runs the base branch's copy (bootstrap fallback on the PR that adds it), passes PR
   text through the environment only, and re-runs when the title or description is edited.
+- Before `gh pr create` or `gh pr edit`, the agent writes the description to a file and checks it
+  locally (the root `AGENTS.md` says so):
+  `PR_TITLE="..." PR_BODY="$(cat body.md)" node scripts/check-github-text.mjs --pr`. Otherwise a
+  bad description is found only by CI, after the PR is open.
 
 ## PR template
 
