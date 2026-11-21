@@ -43,6 +43,33 @@ const encode = text => Buffer.from(text, 'utf8').toString('base64');
 const decode = text => Buffer.from(text, 'base64').toString('utf8');
 const lines = text => text.split('\n').filter(line => line.trim() !== '');
 
+// Project sections: lines between "trust-pyramid:project-start <id>" and "trust-pyramid:project-end
+// <id>" (any comment syntax) belong to the project. Before merging, the base and the new template
+// take the project's copy of each section both sides have, so template examples there never
+// conflict with what the project wrote.
+function sections(text) {
+  const found = new Map();
+  const all = text.split('\n');
+  all.forEach((line, i) => {
+    const start = /trust-pyramid:project-start (\S+)/.exec(line);
+    if (start) found.set(start[1], { start: i });
+    const end = /trust-pyramid:project-end (\S+)/.exec(line);
+    if (end && found.has(end[1])) found.get(end[1]).end = i;
+  });
+  return { all, found: new Map([...found].filter(([, range]) => range.end > range.start)) };
+}
+function keepProjectSections(text, project) {
+  const into = sections(text);
+  const from = sections(project);
+  let out = into.all;
+  for (const [id, range] of [...into.found].sort((a, b) => b[1].start - a[1].start)) {
+    const source = from.found.get(id);
+    if (!source) continue;
+    out = [...out.slice(0, range.start + 1), ...from.all.slice(source.start + 1, source.end), ...out.slice(range.end)];
+  }
+  return out.join('\n');
+}
+
 function loadLock() {
   if (!existsSync(inProject(LOCK))) return null;
   return JSON.parse(readFileSync(inProject(LOCK), 'utf8'));
@@ -148,9 +175,9 @@ function upgrade() {
     }
     if (!exists) { report.missing.push(entry.path); continue; }
 
-    const base = decode(known.base ?? encode(template(entry)));
-    const fresh = template(entry);
     const current = read(inProject(entry.path));
+    const base = keepProjectSections(decode(known.base ?? encode(template(entry))), current);
+    const fresh = keepProjectSections(template(entry), current);
     next.files[entry.path] = lockEntry(entry);
     if (fresh === base || current === fresh) { report.unchanged.push(entry.path); continue; }
     if (current === base) {

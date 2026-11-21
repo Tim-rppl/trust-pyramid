@@ -14,6 +14,7 @@ cd "$(git rev-parse --show-toplevel)"
 # A prefix of "." runs the check on any change. Keep commands simple; put anything with
 # $(...) or loops in a script file (it would expand when this array is defined).
 # Prefer failure-focused reporters: node --test --test-reporter=spec, pytest -q -rf --tb=short.
+# trust-pyramid:project-start checks (upgrades keep this section as the project wrote it)
 CHECKS=(
   "web/ shared/|web: typecheck + lint|npm --prefix web run --silent lint|fast"
   "web/ shared/|web: unit tests|npm --prefix web run --silent test"
@@ -24,6 +25,7 @@ CHECKS=(
   # "app/ tests/ lint/ pyproject.toml|python: ruff + mypy|.venv/bin/ruff check . && .venv/bin/mypy --strict app"
   # "app/ tests/ pyproject.toml|python: tests|.venv/bin/pytest -q -rf --tb=short"
 )
+# trust-pyramid:project-end checks
 
 fast_only=0
 if [[ "${1:-}" == "--fast" ]]; then fast_only=1; shift; fi

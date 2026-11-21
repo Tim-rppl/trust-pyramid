@@ -186,7 +186,7 @@ Commit to a new branch. Never push or deploy unless the user asks.
 
 | Template | Install as |
 |---|---|
-| `templates/scripts/check.sh` | `scripts/check.sh` (edit the `CHECKS` table) |
+| `templates/scripts/check.sh` | `scripts/check.sh` (edit the `CHECKS` table; keep its `trust-pyramid:project-start/end` markers) |
 | `templates/scripts/stop-gate.sh` | `scripts/stop-gate.sh` |
 | `templates/scripts/install-agent-hooks.sh` | `scripts/install-agent-hooks.sh` (the user runs it; asks, then merges) |
 | `templates/scripts/hook-status.sh` | `scripts/hook-status.sh` (is every gate on in this clone; pre-commit reminds until it is) |

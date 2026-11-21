@@ -21,6 +21,7 @@ function oldSkill() {
   writeFileSync(join(dir, 'VERSION'), '0.3.9\n');
   edit(dir, 'templates/scripts/stop-gate.sh', '#!/usr/bin/env bash\n', '#!/usr/bin/env bash\n# old stop-gate\n');
   edit(dir, 'templates/scripts/check.sh', '#!/usr/bin/env bash\n', '#!/usr/bin/env bash\n# old check.sh header\n');
+  edit(dir, 'templates/scripts/check.sh', '# Python example:', '# OLD Python example:'); // inside the project section
   edit(dir, 'templates/AGENTS.md', '- First, once per session', '- OLD first rule. First, once per session');
   edit(dir, 'templates/quality/rule-candidates.md', '#', '# OLD\n#');
   edit(dir, 'templates/gitignore-additions.txt', '.quality-state/\n', '');
@@ -49,7 +50,9 @@ function project() {
   const recorded = run('record', old);
   assert.equal(recorded.status, 0, recorded.stderr);
 
-  edit(dir, 'scripts/check.sh', /CHECKS=\(\n/.exec(read(dir, 'scripts/check.sh'))[0], 'CHECKS=(\n  "app/|app: my project check|npm test|fast"\n');
+  writeFileSync(join(dir, 'scripts/check.sh'), read(dir, 'scripts/check.sh')
+    .replace(/CHECKS=\([\s\S]*?\n\)/, 'CHECKS=(\n  "app/|app: my project check|npm test|fast"\n)') // the project rewrites its section
+    + '# my own note at the end\n'); // and changes a line outside it
   edit(dir, 'AGENTS.md', '- OLD first rule.', '- MY OWN first rule.');
   writeFiles(dir, { 'quality/rule-candidates.md': '# My rule candidates\n- never call the model from the client\n' });
   writeFileSync(join(dir, 'scripts/stop-gate.sh'), read(dir, 'scripts/stop-gate.sh').replace(/\n/g, '\r\n')); // a Windows checkout
@@ -71,8 +74,11 @@ test('upgrade keeps project changes, applies template changes, and stops at real
   // Tailored file, changed on other lines: both changes kept.
   assert.match(out, /Merged[^]*scripts\/check\.sh/);
   const check = read(dir, 'scripts/check.sh');
-  assert.match(check, /app: my project check/, 'the project\'s CHECKS table is kept');
-  assert.doesNotMatch(check, /old check\.sh header/, 'the template change is applied');
+  assert.match(check, /CHECKS=\(\n  "app\/\|app: my project check\|npm test\|fast"\n\)/, 'the project section is kept as the project wrote it');
+  assert.doesNotMatch(check, /Python example/, 'template examples inside the project section do not come back or conflict');
+  assert.doesNotMatch(check, /old check\.sh header/, 'the template change outside the section is applied');
+  assert.match(check, /# my own note at the end\n$/, 'the project change outside the section is kept');
+  assert.doesNotMatch(out, /CONFLICTS[^]*check\.sh/);
 
   // Same line changed on both sides: conflict markers, nothing silently chosen.
   assert.match(out, /CONFLICTS[^]*AGENTS\.md \(1 conflict\)/);

@@ -15,6 +15,9 @@ Instructions: `references/upgrade.md`.
   hand. New in this release and worth installing: `scripts/hook-status.sh`, the updated
   `scripts/install-agent-hooks.sh`, `stop-gate.sh` and `.githooks/pre-commit`, the first rule in
   `AGENTS.md`, and the npm `prepare` script.
+- Expect one conflict in `scripts/check.sh`: 0.4.0 marks the `CHECKS` table as a project section
+  (`trust-pyramid:project-start checks`). Keep the project's table between the new markers; later
+  upgrades then never conflict there.
 
 Fixes from installing the skill on a real project on Windows 11 (issues #1-#15).
 

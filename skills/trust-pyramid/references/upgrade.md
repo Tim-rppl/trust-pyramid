@@ -22,6 +22,11 @@ Three-way merge (`git merge-file`): the project's file, the base, and the new te
 different lines are combined. When both changed the same lines, the file gets conflict markers
 (`<<<<<<< your project` ... `>>>>>>> trust-pyramid <version>`); nothing is chosen silently.
 
+**Project sections.** Lines between `trust-pyramid:project-start <id>` and
+`trust-pyramid:project-end <id>` (in a comment) belong to the project, such as the `CHECKS` table in
+`scripts/check.sh`. Upgrades keep the project's copy of such a section as it is, so changed template
+examples there never conflict. Keep the markers when editing these files.
+
 ## Steps
 
 1. `node <skill>/tools/upgrade.mjs status --project .` and read the `CHANGELOG.md` entries between
