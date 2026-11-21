@@ -16,6 +16,13 @@ Deterministic checks the agent cannot argue with. Everything here runs inside `s
 
 Strict mode everywhere (`strict: true`, mypy `--strict`, etc.). Add a `typecheck` script per package.
 
+**Type-check the tests too.** A `tsconfig.json` often includes only `src/`, and tests run through
+`tsx` or `node --import tsx`, which strip types without checking them. Test fakes then drift from the
+interfaces they stand in for (a fake without a new method still passes) and "✓ typecheck" covers
+less than it says. When the project's config leaves tests out, add a `tsconfig.test.json` and check it
+too (TypeScript recipe in `stack-recipes.md`). If the tests already have type errors, record a
+baseline (errors per file, which may only go down, core rule 6) instead of leaving tests unchecked.
+
 ## 3. Boundary rules
 
 Turn the Layer 1 table into rules. In JS/TS use `no-restricted-imports` with per-directory

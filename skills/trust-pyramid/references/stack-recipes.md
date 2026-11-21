@@ -11,6 +11,20 @@ Inside each: `domain/` pure, `services/` or `adapters/` for I/O.
 typescript-eslint if it supports the installed TypeScript major; `node --test` or Vitest; fast-check;
 `@firebase/rules-unit-testing` against the emulator; Playwright for the verify CLI.
 
+**Type-check the tests.** If `tsconfig.json` does not include the test files, add
+`tsconfig.test.json` and run `tsc -p tsconfig.test.json` in the typecheck check:
+
+```json
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true, "rootDir": ".", "allowImportingTsExtensions": true },
+  "include": ["src", "test", "tests"]
+}
+```
+
+`rootDir: "."` (or no `rootDir`) keeps the tests inside it; `allowImportingTsExtensions` is needed
+when tests import `.ts` paths. Count the existing errors first; if there are any, ratchet them.
+
 **First rules:**
 - UI cannot import `firebase/*` or `firebase-admin`; only `web/src/services` talks to Firebase.
 - No OpenAI-compatible base URLs, API keys or model SDK imports outside `server/src/adapters/ai`.

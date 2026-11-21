@@ -9,9 +9,11 @@ set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 PATTERN='(eslint|oxlint|biome)-disable|@ts-(ignore|nocheck|expect-error)|#[[:space:]]*noqa|#[[:space:]]*type:[[:space:]]*ignore|pylint:[[:space:]]*disable|//[[:space:]]*nolint|@SuppressWarnings|istanbul ignore|c8 ignore|NOLINT'
-# Skipped or focused tests, checked only in test files. Brackets ([.] [(]) instead of backslashes,
-# because awk would unescape them once more.
-SKIP_PATTERN='(^|[^A-Za-z0-9_$])(it|test|describe|suite|context|bench)[.](skip|only|todo)[(]|(^|[^A-Za-z0-9_$.])(xit|xtest|xdescribe|fit|fdescribe)[(]|[{,][[:space:]]*(skip|only)[[:space:]]*:[[:space:]]*(true|["`'"'"'])|@pytest[.]mark[.](skip|skipif|xfail)|pytest[.](skip|xfail)[(]|@unittest[.](skip|skipIf|skipUnless|expectedFailure)|[.]skipTest[(]|(^|[^A-Za-z0-9_])[tb][.]Skip(f|Now)?[(]'
+# Skipped or focused tests, checked only in test files: it.skip / test.only / describe.todo (also with
+# spaces, or assigned to a name without a call), xit / fdescribe, { skip: true }, runtime skips with
+# no argument or a reason (t.skip(), ctx.skip('why'), this.skip()), pytest and unittest skips, Go
+# t.Skip. Brackets ([.] [(]) instead of backslashes, because awk would unescape them once more.
+SKIP_PATTERN='(^|[^A-Za-z0-9_$])(it|test|describe|suite|context|bench)[[:space:]]*[.][[:space:]]*(skip|only|todo)([^A-Za-z0-9_$]|$)|(^|[^A-Za-z0-9_$.])(xit|xtest|xdescribe|fit|fdescribe)[[:space:]]*[(]|[{,][[:space:]]*(skip|only)[[:space:]]*:[[:space:]]*(true|["`'"'"'])|[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*[.][[:space:]]*(skip|todo)[[:space:]]*[(][[:space:]]*([)]|["`'"'"'])|@pytest[.]mark[.](skip|skipif|xfail)|pytest[.](skip|xfail)[[:space:]]*[(]|@unittest[.](skip|skipIf|skipUnless|expectedFailure)|[.]skipTest[(]|(^|[^A-Za-z0-9_])[tb][.]Skip(f|Now)?[(]'
 TEST_FILE='(^|/)(tests?|__tests__|spec|e2e)/|[.](test|spec)[.][cm]?[jt]sx?$|_test[.](go|py)$|(^|/)test_[^/]*[.]py$'
 allowed=quality/allowed-suppressions.txt
 
