@@ -1,6 +1,6 @@
 ---
 name: trust-pyramid
-description: Set up (or extend) a project-specific quality system where coding agents prove their own work - architecture constraints, custom lint rules with fix-it error messages, runtime verification, an evidence-based AI reviewer, and gates (agent Stop hook, pre-commit, CI, branch protection) that cannot be skipped. Use when starting a new project, when adding agent guardrails to an existing repo, or when the user wants to stop reviewing AI-written code line by line. Works in Claude Code and Codex.
+description: Set up (or extend) a project-specific quality system where coding agents prove their own work - architecture constraints, custom lint rules with fix-it error messages, runtime verification, an evidence-based AI reviewer, and gates (agent Stop hook, pre-commit, CI, branch protection) that cannot be skipped. Use when starting a new project, when adding agent guardrails to an existing repo, when upgrading an existing Trust Pyramid installation, or when the user wants to stop reviewing AI-written code line by line. Works in Claude Code and Codex.
 license: MIT
 ---
 
@@ -175,7 +175,9 @@ Write a short root `AGENTS.md` (Claude Code: `CLAUDE.md` containing `@AGENTS.md`
    with `--no-verify` only for this probe (the local gates would stop it otherwise). Expect the
    CI `check` job to fail at the exact file:line, record the result, then close the PR and delete
    its branch without merging.
-5. Report to the user in plain language: what was installed, how each layer was proven, what is
+5. Record the installation for future upgrades: `node <skill>/tools/upgrade.mjs record --project .`
+   (`<skill>` is this skill's directory) writes `quality/trust-pyramid.lock.json`. Commit it.
+6. Report to the user in plain language: what was installed, how each layer was proven, what is
    still missing, and the one-time setup they must do themselves (secrets, branch protection).
 
 Commit to a new branch. Never push or deploy unless the user asks.
@@ -208,12 +210,17 @@ Commit to a new branch. Never push or deploy unless the user asks.
 | `templates/gitignore-additions.txt` | append to `.gitignore` |
 | `templates/gitattributes` | append to `.gitattributes` (LF line endings for gate files on Windows) |
 
+`install-manifest.json` is the machine-readable version of this table (path, and whether the file
+is mechanism, tailored, content or append); `tools/upgrade.mjs` uses it.
+
 Adapt every template to the stack; remove example rules that do not apply. Templates are
 JavaScript/Node because the verification tooling (Playwright) is; for non-Node stacks keep
 `verify/` as a small Node package and write lint rules in the stack's own linter.
 
 ## Daily use (after setup)
 
+- **Upgrade to a new release of this skill** → follow `references/upgrade.md`: three-way merge that
+  keeps the project's changes, in a worktree, through a pull request.
 - **A mistake happened twice** → follow `references/add-rule.md`.
 - **Before a PR** → CI runs the reviewer; in the full profile also run it locally (`references/layer-5-ai-reviewer.md`).
 - **Weekly sweep** → run the reviewer over one risk area at a time to collect rule candidates; estimate
