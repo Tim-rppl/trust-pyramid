@@ -76,12 +76,16 @@ prefixes, a label, a command). Behavior:
   For other runners, pick a reporter that prints a failure summary and extend `summarize()`.
 - Exit code is the only contract: 0 pass, 1 a check failed, 3 setup needed (below).
 - **Dependencies (`SETUP`).** List what the checks need installed, one line per package:
-  `<path that exists once installed>|<install command>`, for example
-  `"web/node_modules/.package-lock.json|npm --prefix web ci"` (npm writes that file last, so an
-  install still running counts as missing). A fresh git worktree has none of it, and a missing
-  linter or compiler reads like a failure in the change. With a path missing, `check.sh` runs no
-  check, prints `setup needed` with the install commands, and exits 3; `scripts/check.sh --setup`
-  installs what is missing. Make sure CI's install step creates the same paths.
+  `<path that exists once installed>|<install command>|<path prefixes>`, for example
+  `"web/node_modules/.package-lock.json|npm --prefix web ci|web/ shared/"` (npm writes that file
+  last, so an install still running counts as missing). Use the prefixes of the checks that need the
+  package; without prefixes the entry applies to every change. A fresh git worktree has none of it,
+  and a missing linter or compiler reads like a failure in the change. When the change touches the
+  prefixes of a missing entry (`--all`: always), `check.sh` runs no check, prints `setup needed`
+  with the install commands, and exits 3; `scripts/check.sh --setup` installs what is missing. A
+  docs-only commit is not held up by a missing package. If a check fails while any entry is missing
+  (its prefixes were narrower than the check's), the result is also reported as setup needed (exit
+  3) and not logged. Make sure CI's install step creates the same paths.
 - **Suites not run here (`NOT_RUN`).** Every test script of the project (`package.json` `test*`
   scripts, pytest markers, emulator or database suites) is either a `CHECKS` entry or a `NOT_RUN`
   entry, `<label>|<reason and where it does run>`. `check.sh` prints them after the results

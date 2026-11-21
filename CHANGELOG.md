@@ -26,6 +26,8 @@ maintainer (#50). Also fixes from the 0.4.4 field test (#43-#49).
 - **Missing dependencies hold up only the commits that need them (#44):** a `SETUP` entry can name
   the path prefixes that need it (`<path>|<install>|<prefixes>`; without prefixes: every change).
   Pre-commit reports exit 3 as "install the dependencies first", not "fix the failures".
+  If a check fails while any listed dependency is missing (prefixes too narrow), the result is also
+  reported as setup needed and not logged.
 - **The Stop hook reads the transcript only when needed (#47):** with no other worktree changed it
   does not read it at all; otherwise a fixed-string filter on the directory names comes first. It no
   longer writes a copy to `.quality-state/`. About 4x faster on a 10 MB transcript.

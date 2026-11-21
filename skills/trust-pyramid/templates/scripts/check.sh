@@ -137,6 +137,9 @@ run_limited() {
   fi
 }
 
+# Dependencies missing outside this change's prefixes (a SETUP entry whose prefixes are narrower than
+# a check that needs it): a failure then may be the missing tool, so it is reported as setup, not logged.
+unsure=$(missing_setup)
 failed=0
 for entry in "${CHECKS[@]}"; do
   IFS='|' read -r prefixes label command flags <<<"$entry"
@@ -163,7 +166,7 @@ for entry in "${CHECKS[@]}"; do
     echo "✗ $label"
   fi
   summarize "$output"
-  [[ -n "${TRUST_GATE:-}" && -f scripts/gate-log.sh ]] && bash scripts/gate-log.sh "$label" <<<"$output"
+  [[ -z "$unsure" && -n "${TRUST_GATE:-}" && -f scripts/gate-log.sh ]] && bash scripts/gate-log.sh "$label" <<<"$output"
   failed=1
 done
 
@@ -172,5 +175,12 @@ if (( ! fast_only )); then
     IFS='|' read -r label reason <<<"$entry"
     echo "• not run here: $label ($reason)"
   done
+fi
+if (( failed )) && [[ -n "$unsure" ]]; then
+  echo "setup needed in $PWD: these dependencies are missing, so the failures above may come from them:"
+  printf '%s\n' "$unsure" | sed 's/^\([^|]*\)|\([^|]*\)|.*$/  missing \1  (installed by: \2)/'
+  echo "  Run: bash scripts/check.sh --setup   (in $PWD), then check again. If a SETUP entry's prefixes"
+  echo "  are narrower than those of the checks that need it, widen them."
+  exit 3
 fi
 exit $failed

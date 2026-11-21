@@ -114,8 +114,10 @@ index, and Linux CI then fails with `Permission denied`).
 
 In `scripts/check.sh`, list every test script the project has: each is a `CHECKS` entry or a
 `NOT_RUN` entry with the reason (needs an emulator, a database...) and where it runs instead. Fill
-`SETUP` with the install command of every package the checks need, then prove it in a fresh
-worktree: `check.sh` says `setup needed`, `check.sh --setup` installs, the checks run.
+`SETUP` with the install command of every package the checks need and the path prefixes of the
+checks that need it, then prove it in a fresh worktree: `check.sh --all` says `setup needed`,
+`check.sh --setup` installs, `check.sh --all` runs the checks. (Without changes, a plain `check.sh`
+in a fresh worktree has nothing under those prefixes, so it does not ask for setup.)
 
 Agents usually cannot write their own host config (Claude Code protects `.claude/settings*.json`,
 Codex protects `.codex/`), and neither host runs a hook that is not registered in its config: the

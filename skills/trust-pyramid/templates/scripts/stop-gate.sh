@@ -96,7 +96,7 @@ mentioned() {
   shift
   for wt in "$@"; do names+=(-e "${wt##*/}"); done
   want=$(printf '%s\n' "$@" | normalize)
-  grep -iF "${names[@]}" "$file" | normalize | WANT=$want awk '
+  grep -aiF "${names[@]}" "$file" | normalize | WANT=$want awk '
     function ends_here(s, p,   i, c, d) {
       while ((i = index(s, p)) > 0) {
         c = substr(s, i + length(p), 1)

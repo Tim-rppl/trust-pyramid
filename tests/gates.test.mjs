@@ -631,3 +631,16 @@ test('rule candidates seen twice are listed by hook-status (not in --quiet) and 
   const report = sh('node scripts/gate-report.mjs');
   assert.match(report.stdout, /waiting for the agent to add them as rules[^]*\n {4}2 {2}client IP read from X-Forwarded-For\n {4}3 {2}fakes drift from interfaces/);
 });
+
+test('a check that fails while a dependency outside the change is missing is reported as setup, not as a failure', () => {
+  const { dir, git } = repoWithChecks();
+  withSetup(dir, git, 'deps/installed|mkdir -p deps && touch deps/installed|other/');
+  copyTemplate('scripts/gate-log.sh', dir);
+  writeFiles(dir, { 'app/value.txt': 'broken\n' });
+  const result = spawnSync('bash', ['-c', 'TRUST_GATE=pre-commit bash scripts/check.sh'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(result.status, 3, result.stdout);
+  assert.match(result.stdout, /✗ app: value is ok[^]*setup needed in .*may come from them:\n {2}missing deps\/installed {2}\(installed by: mkdir -p deps && touch deps\/installed\)/);
+  assert.ok(!existsSync(join(dir, '.quality-state/gate-log.jsonl')), 'not logged as an interception');
+  writeFiles(dir, { 'deps/installed': '' });
+  assert.equal(run(dir, 'bash scripts/check.sh').status, 1, 'with dependencies installed, the failure is a failure');
+});
