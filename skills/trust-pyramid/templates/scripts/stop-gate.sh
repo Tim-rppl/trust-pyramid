@@ -84,42 +84,63 @@ normalize() {
 }
 cwd_top=$(git -C "$hook_cwd" rev-parse --show-toplevel 2>/dev/null) || cwd_top=""
 cwd_top=$(printf '%s\n' "$cwd_top" | normalize)
-transcript_norm=""
-if [[ "$mode" == session && -n "$transcript" && -f "$transcript" ]]; then
-  transcript_norm=$state_dir/stop-gate-transcript
-  normalize < "$transcript" > "$transcript_norm"
-fi
+# Only runs started by the host are logged as Stop-hook interceptions (scripts/gate-log.sh).
+gate=""; (( from_host )) && gate=stop-hook
 
-ours() {  # ours <worktree>: does this session work there?
-  local path
-  path=$(printf '%s\n' "$1" | normalize)
-  [[ "$path" == "$cwd_top" ]] && return 0
-  [[ -n "$transcript_norm" ]] || return 1
-  # The path must end there: a mention of .../app-feature/x does not select the worktree .../app.
-  awk -v p="$path" '{ s = $0; while ((i = index(s, p)) > 0) {
-      c = substr(s, i + length(p), 1); if (c == "" || c !~ /[A-Za-z0-9_-]/) { found = 1; exit }
-      s = substr(s, i + 1) } } END { exit !found }' "$transcript_norm"
+# mentioned <transcript> <worktree>...: the worktrees (normalized, one per line) that the transcript
+# mentions as a whole path: not .../wt-feature or .../wt.bak for .../wt, but .../wt/x, "…/wt" or a
+# sentence ending in .../wt. A fixed-string filter on the directory names comes first, so the
+# normalization runs on the few lines that can match, not on the whole, growing transcript.
+mentioned() {
+  local file=$1 names=() wt want
+  shift
+  for wt in "$@"; do names+=(-e "${wt##*/}"); done
+  want=$(printf '%s\n' "$@" | normalize)
+  grep -aiF "${names[@]}" "$file" | normalize | WANT=$want awk '
+    function ends_here(s, p,   i, c, d) {
+      while ((i = index(s, p)) > 0) {
+        c = substr(s, i + length(p), 1)
+        if (c == "" || c !~ /[a-z0-9_.-]/) return 1
+        if (c == ".") { d = substr(s, i + length(p) + 1, 1); if (d == "" || d !~ /[a-z0-9_-]/) return 1 }
+        s = substr(s, i + 1)
+      }
+      return 0
+    }
+    BEGIN { n = split(ENVIRON["WANT"], want, "\n") }
+    { for (k = 1; k <= n; k++) if (want[k] != "" && !(k in hit) && ends_here($0, want[k])) hit[k] = 1 }
+    END { for (k in hit) print want[k] }'
 }
 
 # Exit status: 0 all pass, 1 a check failed, 3 only missing dependencies (scripts/check.sh --setup).
 run_checks() {
-  local out code failed=0 setup=0 worktree top script
-  out=$(TRUST_GATE=stop-hook bash scripts/check.sh --fast 2>&1); code=$?
+  local out code failed=0 setup=0 worktree top norm script dirty=() others=() mine=""
+  out=$(TRUST_GATE=$gate bash scripts/check.sh --fast 2>&1); code=$?
   if (( code )); then printf '%s\n' "$out"; (( code == 3 )) && setup=1 || failed=1; fi
   if [[ "$mode" != none ]]; then
+    # Linked worktrees with uncommitted changes. With none (the usual case) the transcript is not read.
     while IFS= read -r worktree; do
       [[ -d "$worktree" ]] || continue
       top=$(git -C "$worktree" rev-parse --show-toplevel 2>/dev/null) || continue
       [[ "$top" == "$root" ]] && continue
-      [[ "$mode" == all ]] || ours "$top" || continue
       [[ -n "$(git -C "$top" status --porcelain 2>/dev/null)" ]] || continue
+      dirty+=("$top")
+      [[ "$(printf '%s\n' "$top" | normalize)" == "$cwd_top" ]] || others+=("$top")
+    done < <(git worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p')
+    if [[ "$mode" == session && ${#others[@]} -gt 0 && -n "$transcript" && -f "$transcript" ]]; then
+      mine=$(mentioned "$transcript" "${others[@]}")
+    fi
+    for top in ${dirty[@]+"${dirty[@]}"}; do
+      if [[ "$mode" == session ]]; then
+        norm=$(printf '%s\n' "$top" | normalize)
+        [[ "$norm" == "$cwd_top" ]] || grep -Fxq -- "$norm" <<<"$mine" || continue
+      fi
       script="$top/scripts/check.sh"; [[ -f "$script" ]] || script="$root/scripts/check.sh"
-      out=$(cd "$top" && TRUST_GATE=stop-hook bash "$script" --fast 2>&1); code=$?
+      out=$(cd "$top" && TRUST_GATE=$gate bash "$script" --fast 2>&1); code=$?
       if (( code )); then
         printf 'In the git worktree %s (uncommitted changes there):\n%s\n' "$top" "$out"
         (( code == 3 )) && setup=1 || failed=1
       fi
-    done < <(git worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p')
+    done
   fi
   (( failed )) && return 1
   (( setup )) && return 3
@@ -127,7 +148,7 @@ run_checks() {
 }
 
 output=$(run_checks); result=$?
-rm -f "$state_dir/stop-gate-transcript"
+rm -f "$state_dir/stop-gate-transcript"  # written by 0.4.4
 
 if (( result == 0 )); then
   (( from_host )) && rm -f "$counter" "$setup_counter" "$handover"
@@ -149,16 +170,18 @@ if (( result == 3 )); then
   # used; after max_attempts such stops in a row the turn ends with a visible message.
   count=$(( $(count_for "$setup_counter") + 1 ))
   echo "$session $count" > "$setup_counter"
-  (( count > max_attempts )) && let_end "Quality checks did not run: dependencies are still missing. Run bash scripts/check.sh --setup where the output below says, then check again."$'\n'"$output"
+  (( count > max_attempts )) && { rm -f "$setup_counter"; let_end "Quality checks did not run: dependencies are still missing. Run bash scripts/check.sh --setup where the output below says, then check again."$'\n'"$output"; }
   block "Setup needed before the checks can run. This is not a problem in your change and does not use up a fix attempt. Install the missing dependencies (bash scripts/check.sh --setup, in the directory named below), wait until it finishes, then finish again."$'\n'"$output"
 fi
 
 if [[ -f "$handover" && "$(cat "$handover")" == "$session" ]]; then
   # The agent has already been told to stop and explain; let the turn end, visibly.
-  rm -f "$counter" "$handover"
+  rm -f "$counter" "$setup_counter" "$handover"
   let_end "Quality checks are still failing after the allowed fix attempts. A human needs to look at scripts/check.sh output."
 fi
 
+# A real failure ends a run of setup stops: the setup limit counts setup stops in a row.
+rm -f "$setup_counter"
 count=$(( $(count_for "$counter") + 1 ))
 echo "$session $count" > "$counter"
 if (( count > max_attempts )); then
@@ -168,6 +191,7 @@ fi
 
 reason="Checks failed (attempt $count of $max_attempts). Fix the root cause before finishing."
 reason+=$'\n'"Do not disable rules, skip tests or weaken assertions. If the fix needs a protected gate file you"
-reason+=$'\n'"cannot edit, stop now and list the exact edits for the user instead of trying again."
+reason+=$'\n'"cannot edit here, stop now: tell the user, and propose that change as its own pull request from a"
+reason+=$'\n'"separate worktree (quality/ADD_RULE.md) instead of trying again."
 grep -q '^In the git worktree ' <<<"$output" && reason+=$'\n'"A failure under \"In the git worktree ...\" comes from that worktree's uncommitted changes, which this session's transcript mentions. If that work is not yours, tell the user and finish instead of changing it."
 block "$reason"$'\n'"$output"

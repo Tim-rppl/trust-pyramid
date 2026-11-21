@@ -33,14 +33,16 @@ CHECKS=(
 # trust-pyramid:project-end checks
 
 # trust-pyramid:project-start local
-# Dependencies the checks need: <path that exists once installed>|<install command>, one per package.
-# A fresh git worktree has none, and missing tools would read as failures in the change; with a path
-# missing, check.sh runs nothing, says "setup needed" and exits 3, and  scripts/check.sh --setup
-# installs it. For npm, use node_modules/.package-lock.json: npm writes it last, so an install still
-# running counts as missing.
+# Dependencies the checks need, one per package:
+#   <path that exists once installed>|<install command>[|<path prefixes of the changes that need it>]
+# A fresh git worktree has none, and missing tools would read as failures in the change. When a
+# change touches the prefixes of a missing entry (no prefixes: any change; --all: always), check.sh
+# runs nothing, says "setup needed" and exits 3, and  scripts/check.sh --setup  installs it. Use the
+# prefixes of the checks that need the package, so a docs-only commit is not held up. For npm, use
+# node_modules/.package-lock.json: npm writes it last, so an install still running counts as missing.
 SETUP=(
-  # "web/node_modules/.package-lock.json|npm --prefix web ci"
-  # "lint/node_modules/.package-lock.json|npm --prefix lint ci"
+  # "web/node_modules/.package-lock.json|npm --prefix web ci|web/ shared/"
+  # "lint/node_modules/.package-lock.json|npm --prefix lint ci|web/ server/ shared/ lint/"
 )
 # Test suites check.sh does not run (they need an emulator, a database, a device...), with where
 # they do run: <label>|<reason>. They are printed after the results, so a green list is not read as
@@ -50,15 +52,15 @@ NOT_RUN=(
 )
 # trust-pyramid:project-end local
 
-missing_setup() {  # one "<path>|<command>" line per missing dependency
-  local entry path install
+missing_setup() {  # one "<path>|<command>|<prefixes>" line per missing dependency
+  local entry path install prefixes
   for entry in ${SETUP[@]+"${SETUP[@]}"}; do
-    IFS='|' read -r path install <<<"$entry"
-    [[ -e "$path" ]] || printf '%s|%s\n' "$path" "$install"
+    IFS='|' read -r path install prefixes <<<"$entry"
+    [[ -e "$path" ]] || printf '%s|%s|%s\n' "$path" "$install" "${prefixes:-.}"
   done
 }
 if [[ "${1:-}" == "--setup" ]]; then
-  while IFS='|' read -r path install; do
+  while IFS='|' read -r path install _; do
     [[ -n "$path" ]] || continue
     echo "→ $install"
     bash -c "$install" || echo "✗ failed: $install"
@@ -66,13 +68,6 @@ if [[ "${1:-}" == "--setup" ]]; then
   if [[ -n "$(missing_setup)" ]]; then echo "✗ still missing:"; missing_setup | sed 's/|.*//; s/^/  /'; exit 1; fi
   echo "✓ dependencies installed"
   exit 0
-fi
-missing=$(missing_setup)
-if [[ -n "$missing" ]]; then
-  echo "setup needed in $PWD: dependencies are missing, so no check ran (not a problem in the change)."
-  while IFS='|' read -r path install; do echo "  missing $path  (installed by: $install)"; done <<<"$missing"
-  echo "  Run: bash scripts/check.sh --setup   (in $PWD), then check again."
-  exit 3
 fi
 
 fast_only=0
@@ -92,6 +87,19 @@ applies() {
   done
   return 1
 }
+
+# Dependencies this change needs and that are missing: run nothing, exit 3 (scripts/stop-gate.sh and
+# the pre-commit hook report it as setup, not as a failure in the change).
+missing=""
+while IFS='|' read -r path install prefixes; do
+  [[ -n "$path" ]] && applies "$prefixes" && missing+="  missing $path  (installed by: $install)"$'\n'
+done <<<"$(missing_setup)"
+if [[ -n "$missing" ]]; then
+  echo "setup needed in $PWD: dependencies are missing, so no check ran (not a problem in the change)."
+  printf '%s' "$missing"
+  echo "  Run: bash scripts/check.sh --setup   (in $PWD), then check again."
+  exit 3
+fi
 
 # Keep the failure, drop the noise: passing tests, stack frames, banners, giant assertion dumps.
 summarize() {
@@ -129,6 +137,9 @@ run_limited() {
   fi
 }
 
+# Dependencies missing outside this change's prefixes (a SETUP entry whose prefixes are narrower than
+# a check that needs it): a failure then may be the missing tool, so it is reported as setup, not logged.
+unsure=$(missing_setup)
 failed=0
 for entry in "${CHECKS[@]}"; do
   IFS='|' read -r prefixes label command flags <<<"$entry"
@@ -155,7 +166,7 @@ for entry in "${CHECKS[@]}"; do
     echo "✗ $label"
   fi
   summarize "$output"
-  [[ -n "${TRUST_GATE:-}" && -f scripts/gate-log.sh ]] && bash scripts/gate-log.sh "$label" <<<"$output"
+  [[ -z "$unsure" && -n "${TRUST_GATE:-}" && -f scripts/gate-log.sh ]] && bash scripts/gate-log.sh "$label" <<<"$output"
   failed=1
 done
 
@@ -164,5 +175,12 @@ if (( ! fast_only )); then
     IFS='|' read -r label reason <<<"$entry"
     echo "• not run here: $label ($reason)"
   done
+fi
+if (( failed )) && [[ -n "$unsure" ]]; then
+  echo "setup needed in $PWD: these dependencies are missing, so the failures above may come from them:"
+  printf '%s\n' "$unsure" | sed 's/^\([^|]*\)|\([^|]*\)|.*$/  missing \1  (installed by: \2)/'
+  echo "  Run: bash scripts/check.sh --setup   (in $PWD), then check again. If a SETUP entry's prefixes"
+  echo "  are narrower than those of the checks that need it, widen them."
+  exit 3
 fi
 exit $failed

@@ -9,6 +9,9 @@
 # (oxlint unix format), and a code after file:line[:col]: such as "app/x.py:3: TP001" or "E501".
 # In a linked git worktree the entry goes to the main checkout's log, with a "worktree" field, so
 # gate-report.mjs sees it and it survives `git worktree remove`.
+# TRUST_GATE_LOG=0 records nothing: for probes that simulate a gate (proving a check fires), so the
+# report counts only real interceptions.
+[[ "${TRUST_GATE_LOG:-1}" == 0 ]] && exit 0
 top=$(git rev-parse --show-toplevel) || exit 0
 main=$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')
 [[ -n "$main" && -d "$main" ]] || main=$top

@@ -525,3 +525,126 @@ test('check.sh names the test suites it does not run, except in the fast Stop ho
   assert.match(all.stdout, /✓ app: slow suite\n• not run here: functions: emulator tests \(needs the Firebase emulator; CI runs them\)/);
   assert.doesNotMatch(run(dir, 'bash scripts/check.sh --fast --all').stdout, /not run here/);
 });
+
+function withSetup(dir, git, entry) {
+  const check = join(dir, 'scripts/check.sh');
+  writeFileSync(check, readFileSync(check, 'utf8').replace(/SETUP=\([\s\S]*?\n\)/, `SETUP=(\n  "${entry}"\n)`));
+  git('add', '-A');
+  git('commit', '-q', '-m', 'setup list', '--no-verify');
+}
+
+test('the setup limit counts setup stops in a row: a real failure in between resets it (#43)', () => {
+  const { dir, git } = repoWithChecks();
+  withSetup(dir, git, 'deps/installed|mkdir -p deps && touch deps/installed');
+  writeFiles(dir, { 'app/value.txt': 'broken\n' });
+  const stop = () => verdict(run(dir, 'bash scripts/stop-gate.sh'));
+  assert.match(stop().reason, /^Setup needed/);
+  assert.match(stop().reason, /^Setup needed/);
+  writeFiles(dir, { 'deps/installed': '' });
+  assert.match(stop().reason, /^Checks failed \(attempt 1 of 2\)/);
+  rmSync(join(dir, 'deps'), { recursive: true });
+  const again = stop();
+  assert.ok(again.blocked, 'a new run of setup stops starts at 1, so the checks are not skipped');
+  assert.match(again.reason, /^Setup needed/);
+});
+
+test('pre-commit: missing dependencies only hold up commits that need them, with a setup message (#44)', () => {
+  const { dir, git } = repoWithChecks();
+  withSetup(dir, git, 'deps/installed|mkdir -p deps && touch deps/installed|app/');
+  const commit = () => spawnSync('git', ['commit', '-q', '-m', 'change'], { cwd: dir, encoding: 'utf8' });
+  writeFiles(dir, { 'docs/notes.md': 'docs only\n' });
+  git('add', 'docs/notes.md');
+  const docs = commit();
+  assert.equal(docs.status, 0, 'a docs-only commit does not need app dependencies: ' + docs.stdout + docs.stderr);
+
+  writeFiles(dir, { 'app/value.txt': 'still ok\nok\n' });
+  git('add', 'app/value.txt');
+  const app = commit();
+  assert.equal(app.status, 1);
+  const said = app.stdout + app.stderr; // git passes hook output through on stderr
+  assert.match(said, /setup needed in .*\n {2}missing deps\/installed/);
+  assert.match(said, /Commit not made yet: install the dependencies first \(bash scripts\/check\.sh --setup\)/);
+  assert.doesNotMatch(said, /fix the failures above/);
+});
+
+test('a sibling directory such as <worktree>.bak does not select the worktree; a sentence ending in it does (#45)', () => {
+  const { dir, git } = repoWithChecks();
+  const base = tempDir();
+  const wt = join(base, 'wt');
+  git('worktree', 'add', '-q', '-b', 'fix/wt', wt);
+  const real = spawnSync('git', ['-C', wt, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' }).stdout.trim();
+  writeFiles(wt, { 'app/value.txt': 'broken\n' });
+  const transcript = join(base, 'session.jsonl');
+  const hook = (text, session) => {
+    writeFileSync(transcript, JSON.stringify({ type: 'text', text }) + '\n');
+    return verdict(spawnSync('bash', [join(dir, 'scripts/stop-gate.sh')], { cwd: dir, encoding: 'utf8', input: hookInput({ session_id: session, cwd: dir, transcript_path: transcript }) }));
+  };
+  assert.ok(!hook(`backed up to ${real}.bak first`, 'a').blocked);
+  assert.ok(!hook(`see ${real}.v2/app/x.ts`, 'b').blocked);
+  assert.ok(hook(`I work in ${real}.`, 'c').blocked);
+  assert.ok(hook(`"cwd":"${real}"`, 'd').blocked);
+  assert.ok(!existsSync(join(dir, '.quality-state/stop-gate-transcript')), 'no copy of the transcript is written (#47)');
+});
+
+test('only host runs are logged as Stop-hook interceptions; TRUST_GATE_LOG=0 logs nothing (#49)', () => {
+  const { dir } = repoWithChecks();
+  copyTemplate('scripts/gate-log.sh', dir);
+  const log = join(dir, '.quality-state/gate-log.jsonl');
+  const entries = () => existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(Boolean).length : 0;
+  writeFiles(dir, { 'app/value.txt': 'broken\n' });
+  run(dir, 'bash scripts/stop-gate.sh', '');
+  run(dir, 'bash scripts/stop-gate.sh', '{}');
+  assert.equal(entries(), 0, 'manual runs are not interceptions');
+  spawnSync('bash', ['scripts/stop-gate.sh'], { cwd: dir, encoding: 'utf8', input: hookInput({ session_id: 'probe' }), env: { ...process.env, TRUST_GATE_LOG: '0' } });
+  assert.equal(entries(), 0, 'a probe that simulates the host is not an interception either');
+  run(dir, 'bash scripts/stop-gate.sh');
+  assert.equal(entries(), 1);
+  assert.equal(JSON.parse(readFileSync(log, 'utf8')).gate, 'stop-hook');
+});
+
+const LEDGER = `# Rule candidates
+
+| Kind of mistake | Seen | Examples | Why not a rule yet | Plan |
+|---|---|---|---|---|
+| client IP read from X-Forwarded-For | 2 | api/ip.ts:12 | seen once at first | add a lint rule |
+| fakes drift from interfaces | 3 (twice in one PR) | test/fake.ts:4 | not visible in source | test |
+| only once | 1 | a.ts:1 | seen once so far | wait |
+| raw SQL in handlers | 4 | api/x.ts:9 | Blocked until the 12 existing violations are fixed | fix them |
+| | | | | |
+
+| A later table | Seen |
+|---|---|
+| not a candidate | 9 |
+`;
+
+test('rule candidates seen twice are listed by hook-status (not in --quiet) and gate-report (#50)', () => {
+  const { dir, sh } = repoWithStagedHooks();
+  copyTemplate('scripts/gate-report.mjs', dir);
+  sh('bash scripts/install-agent-hooks.sh --yes');
+  copyTemplate('quality/rule-candidates.md', dir);
+  assert.doesNotMatch(sh('bash scripts/hook-status.sh').stdout, /Rule candidates/, 'the empty template lists nothing');
+  writeFiles(dir, { 'quality/rule-candidates.md': LEDGER });
+  const status = sh('bash scripts/hook-status.sh');
+  assert.equal(status.status, 0, 'a reminder, not a failure');
+  assert.match(status.stdout, /Rule candidates seen twice or more[^]*quality\/ADD_RULE\.md[^]*\n {2}- client IP read from X-Forwarded-For \(seen 2\)\n {2}- fakes drift from interfaces \(seen 3\)\n/);
+  assert.doesNotMatch(status.stdout, /only once|not a candidate|raw SQL/);
+  assert.match(status.stdout, /• 1 more rule candidate\(s\) at Seen 2 or more are blocked until something else is done/);
+  assert.match(status.stdout, /ask the user whether you may add/);
+  assert.doesNotMatch(sh('bash scripts/hook-status.sh --quiet').stdout, /Rule candidates/, 'pre-commit stays quiet');
+  const report = sh('node scripts/gate-report.mjs');
+  assert.match(report.stdout, /waiting for the agent to propose them as rules[^]*\n {4}2 {2}client IP read from X-Forwarded-For\n {4}3 {2}fakes drift from interfaces\n/);
+  assert.match(report.stdout, /blocked until something else is done:\n {4}4 {2}raw SQL in handlers/);
+});
+
+test('a check that fails while a dependency outside the change is missing is reported as setup, not as a failure', () => {
+  const { dir, git } = repoWithChecks();
+  withSetup(dir, git, 'deps/installed|mkdir -p deps && touch deps/installed|other/');
+  copyTemplate('scripts/gate-log.sh', dir);
+  writeFiles(dir, { 'app/value.txt': 'broken\n' });
+  const result = spawnSync('bash', ['-c', 'TRUST_GATE=pre-commit bash scripts/check.sh'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(result.status, 3, result.stdout);
+  assert.match(result.stdout, /✗ app: value is ok[^]*setup needed in .*may come from them:\n {2}missing deps\/installed {2}\(installed by: mkdir -p deps && touch deps\/installed\)/);
+  assert.ok(!existsSync(join(dir, '.quality-state/gate-log.jsonl')), 'not logged as an interception');
+  writeFiles(dir, { 'deps/installed': '' });
+  assert.equal(run(dir, 'bash scripts/check.sh').status, 1, 'with dependencies installed, the failure is a failure');
+});

@@ -24,7 +24,8 @@ if [[ -f .git ]]; then
   report "• This is a linked git worktree of $main. The Stop hook registered there also checks this worktree"
   report "  when the agent session works in it (its cwd, or a path its transcript mentions). The per-machine deny"
   report "  list does not apply here, by design: gate changes are made in a worktree and reach the default branch"
-  report "  through a reviewed pull request."
+  report "  through a reviewed pull request. Use absolute paths for files here: permission rules check a"
+  report "  relative path against the session's directory, so the main checkout's deny list may refuse it."
 fi
 claude_settings=(.claude/settings.json .claude/settings.local.json)
 codex_settings=(.codex/hooks.json)
@@ -68,6 +69,33 @@ if [[ -f "$state/stop-gate-last-run" ]]; then
   report "✓ Stop hook last ran: $(cat "$state/stop-gate-last-run")"
 elif (( claude_on || codex_on )); then
   report "• Stop hook has not run yet in this clone: start a NEW agent session and end one turn to confirm it fires."
+fi
+
+# Rule candidates that reached Seen 2: the agent proposes them as rules (quality/ADD_RULE.md). A
+# reminder, never a failure. The Seen column is found by its header; its leading number counts.
+# A row with a cell starting "Blocked until" waits for something else first, and is only counted.
+ledger=quality/rule-candidates.md
+if (( ! quiet )) && [[ -f "$ledger" ]]; then
+  waiting=$(awk -F'|' '
+    function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+    /^[ \t]*\|/ {
+      if (!col) { for (i = 1; i <= NF; i++) if (tolower(trim($i)) ~ /^seen/) col = i; if (col) kind = (col > 2 ? 2 : 1); next }
+      if ($0 ~ /^[ \t]*\|[ \t:|-]+$/) next
+      seen = trim($col); sub(/[^0-9].*$/, "", seen)
+      if (seen + 0 < 2) next
+      blocked = 0; for (i = 1; i <= NF; i++) if (tolower(trim($i)) ~ /^blocked until/) blocked = 1
+      if (blocked) printf "blocked\n"; else printf "  - %s (seen %d)\n", trim($kind), seen
+      next
+    }
+    col { exit }' "$ledger")
+  blocked=$(grep -c '^blocked$' <<<"$waiting")
+  waiting=$(grep -v '^blocked$' <<<"$waiting")
+  if [[ -n "$waiting" ]]; then
+    echo "• Rule candidates seen twice or more. After the current task, ask the user whether you may add"
+    echo "  each as a rule, then do it as quality/ADD_RULE.md describes (do not wait for a maintainer):"
+    echo "$waiting"
+  fi
+  (( blocked )) && echo "• $blocked more rule candidate(s) at Seen 2 or more are blocked until something else is done (quality/rule-candidates.md)."
 fi
 
 if (( ${#problems[@]} )); then

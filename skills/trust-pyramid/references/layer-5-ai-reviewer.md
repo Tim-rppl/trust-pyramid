@@ -96,9 +96,10 @@ so committing dispositions does not trigger a new review; changing code does.
 ## After a finding is confirmed (the ratchet)
 
 1. Fix it; the evidence test turns green.
-2. Decide: lint rule (`add-rule.md`) / smoke step or unit test / neither. If neither, add or bump an
-   entry in `quality/rule-candidates.md`. The **second** occurrence of the same kind must become a
-   rule or test.
+2. Decide, starting from the finding's `rule_candidate`: lint rule (`quality/ADD_RULE.md`) / smoke
+   step or unit test / neither. If neither, add or bump an entry in `quality/rule-candidates.md`.
+   The **second** occurrence of the same kind must become a rule or test, which the agent adds
+   itself through a pull request.
 3. Append to `quality/review-log.md`: scope, confirmed, rejected, rules/tests added.
 
 ## Sweeps

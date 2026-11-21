@@ -38,6 +38,8 @@ examples there never conflict. Keep the markers when editing these files.
    ```bash
    git worktree add ../<repo>-tp-upgrade -b chore/trust-pyramid-<version>
    ```
+   Address files in the worktree by absolute path: permission rules check a relative path against
+   the session's directory (the main checkout), whose deny list refuses gate files.
    A fresh worktree has no dependencies. Install them before running any check
    (`bash scripts/check.sh --setup` once `SETUP` lists them; before that, the project's own install
    commands, such as `npm ci --prefix lint`), or the checks fail on missing tools.

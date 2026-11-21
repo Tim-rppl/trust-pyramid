@@ -114,8 +114,10 @@ index, and Linux CI then fails with `Permission denied`).
 
 In `scripts/check.sh`, list every test script the project has: each is a `CHECKS` entry or a
 `NOT_RUN` entry with the reason (needs an emulator, a database...) and where it runs instead. Fill
-`SETUP` with the install command of every package the checks need, then prove it in a fresh
-worktree: `check.sh` says `setup needed`, `check.sh --setup` installs, the checks run.
+`SETUP` with the install command of every package the checks need and the path prefixes of the
+checks that need it, then prove it in a fresh worktree: `check.sh --all` says `setup needed`,
+`check.sh --setup` installs, `check.sh --all` runs the checks. (Without changes, a plain `check.sh`
+in a fresh worktree has nothing under those prefixes, so it does not ask for setup.)
 
 Agents usually cannot write their own host config (Claude Code protects `.claude/settings*.json`,
 Codex protects `.codex/`), and neither host runs a hook that is not registered in its config: the
@@ -134,7 +136,7 @@ installation locks it out.
 
 The deny list and the add-rule workflow need each other, so explain this model to the user: the
 deny list lives in `.claude/settings.local.json` (per machine, not committed) and stays on for
-normal feature work. Writing or changing a rule (`references/add-rule.md`) happens in a separate
+normal feature work. Writing or changing a rule (`quality/ADD_RULE.md`, from `references/add-rule.md`) happens in a separate
 git worktree on its own branch, where that file does not exist, and reaches the default branch only
 through a PR that a human reviews (CODEOWNERS and trusted CI cover the gate paths).
 
@@ -164,7 +166,8 @@ Write a short root `AGENTS.md` (Claude Code: `CLAUDE.md` containing `@AGENTS.md`
    Run `bash scripts/hook-status.sh`: every gate must be enabled, and after the user has ended one
    turn in a new session it must show when the Stop hook last ran (proof the host really runs it).
 2. Prove no check is vacuous: introduce one violation per check (lint rule, boundary, test,
-   smoke step), confirm it fails, then restore. Restore from a backup or with an exact edit,
+   smoke step), confirm it fails, then restore. Run these probes with `TRUST_GATE_LOG=0`, so they
+   are not counted as interceptions in `scripts/gate-report.mjs`. Restore from a backup or with an exact edit,
    never with `git checkout` on files that hold uncommitted work.
 3. Demo one small feature end to end: write a deliberately non-compliant version → gate blocks
    it → **run the reviewer blind on that pre-fix commit first** (no hints about the known problems)
@@ -184,6 +187,9 @@ Write a short root `AGENTS.md` (Claude Code: `CLAUDE.md` containing `@AGENTS.md`
    (`<skill>` is this skill's directory) writes `quality/trust-pyramid.lock.json`. Commit it.
 6. Report to the user in plain language: what was installed, how each layer was proven, what is
    still missing, and the one-time setup they must do themselves (secrets, branch protection).
+   Tell them how the rules grow: when a mistake is corrected or repeats, the agent asks "may I add a
+   rule for this?", and on a yes opens a small pull request that adds it (`quality/ADD_RULE.md`);
+   their part is to say yes, then read its plain-language description and approve it.
 
 Commit to a new branch. Never push or deploy unless the user asks.
 
@@ -207,6 +213,7 @@ Commit to a new branch. Never push or deploy unless the user asks.
 | `templates/scripts/gate-log.sh`, `templates/scripts/gate-report.mjs` | `scripts/` (record what the gates block; weekly summary) |
 | `templates/scripts/trusted-check.sh`, `templates/scripts/no-suppressions.sh` | `scripts/` (CI uses the base branch's copies) |
 | `templates/quality/protected-paths.txt`, `templates/quality/allowed-suppressions.txt` | `quality/` (edit the list for the project) |
+| `templates/quality/ADD_RULE.md`, `templates/quality/rule-candidates.md` | `quality/`: how the agent proposes a rule and, on a yes, adds it itself; and the ledger. Ledger reasons are never "protected" or "a maintainer must do it" |
 | `templates/github/CODEOWNERS` | `.github/CODEOWNERS` (replace `@OWNER`) |
 | `templates/claude/agents/quality-reviewer.md` | `.claude/agents/quality-reviewer.md` |
 | `templates/github/` | `.github/` (PR template, and one workflow per installed layer: `templates/github/workflows/quality.yml` always, `templates/github/workflows/quality-smoke.yml` with `verify/`, `templates/github/workflows/quality-review.yml` with the reviewer and its API key) |
@@ -226,7 +233,9 @@ JavaScript/Node because the verification tooling (Playwright) is; for non-Node s
 
 - **Upgrade to a new release of this skill** → follow `references/upgrade.md`: three-way merge that
   keeps the project's changes, in a worktree, through a pull request.
-- **A mistake happened twice** → follow `references/add-rule.md`.
+- **A mistake was corrected, or a rule candidate reached `Seen` 2** → the agent follows the project's
+  `quality/ADD_RULE.md` (`references/add-rule.md`): after the task at hand it asks the user, and on a
+  yes adds the rule itself.
 - **Before a PR** → CI runs the reviewer; in the full profile also run it locally (`references/layer-5-ai-reviewer.md`).
 - **Weekly sweep** → run the reviewer over one risk area at a time to collect rule candidates; estimate
   the token cost from the line count first and tell the user (`references/layer-5-ai-reviewer.md`, "Sweeps").

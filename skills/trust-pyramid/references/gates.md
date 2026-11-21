@@ -76,12 +76,16 @@ prefixes, a label, a command). Behavior:
   For other runners, pick a reporter that prints a failure summary and extend `summarize()`.
 - Exit code is the only contract: 0 pass, 1 a check failed, 3 setup needed (below).
 - **Dependencies (`SETUP`).** List what the checks need installed, one line per package:
-  `<path that exists once installed>|<install command>`, for example
-  `"web/node_modules/.package-lock.json|npm --prefix web ci"` (npm writes that file last, so an
-  install still running counts as missing). A fresh git worktree has none of it, and a missing
-  linter or compiler reads like a failure in the change. With a path missing, `check.sh` runs no
-  check, prints `setup needed` with the install commands, and exits 3; `scripts/check.sh --setup`
-  installs what is missing. Make sure CI's install step creates the same paths.
+  `<path that exists once installed>|<install command>|<path prefixes>`, for example
+  `"web/node_modules/.package-lock.json|npm --prefix web ci|web/ shared/"` (npm writes that file
+  last, so an install still running counts as missing). Use the prefixes of the checks that need the
+  package; without prefixes the entry applies to every change. A fresh git worktree has none of it,
+  and a missing linter or compiler reads like a failure in the change. When the change touches the
+  prefixes of a missing entry (`--all`: always), `check.sh` runs no check, prints `setup needed`
+  with the install commands, and exits 3; `scripts/check.sh --setup` installs what is missing. A
+  docs-only commit is not held up by a missing package. If a check fails while any entry is missing
+  (its prefixes were narrower than the check's), the result is also reported as setup needed (exit
+  3) and not logged. Make sure CI's install step creates the same paths.
 - **Suites not run here (`NOT_RUN`).** Every test script of the project (`package.json` `test*`
   scripts, pytest markers, emulator or database suites) is either a `CHECKS` entry or a `NOT_RUN`
   entry, `<label>|<reason and where it does run>`. `check.sh` prints them after the results
@@ -264,17 +268,20 @@ Nothing is switched off in the main checkout, and the gate change gets a human r
 ## Gate log: what the gates actually caught
 
 With `TRUST_GATE` set, `scripts/check.sh` records every failing check through
-`scripts/gate-log.sh`: the Stop hook sets `stop-hook`, pre-commit `pre-commit`, and the CI `check`
+`scripts/gate-log.sh`: the Stop hook sets `stop-hook` (only when the host started it), pre-commit `pre-commit`, and the CI `check`
 job `ci`; trusted-check also records new suppression comments. Each block becomes one line in
 `.quality-state/gate-log.jsonl` (date, gate, check label, rule IDs found in the output, such as
 `project(no-raw-ui-text)` or `TP001`), and in CI a line in the job summary. Manual runs are not
-logged. The local log is per machine and gitignored; CI's record is the job summary. Checks that
+logged, and `TRUST_GATE_LOG=0` turns logging off for probes that simulate a gate (proving a check
+fires), so the report counts real interceptions only. The local log is per machine and gitignored; CI's record is the job summary. Checks that
 fail in a linked worktree are logged in the main checkout's log, with a `worktree` field, so the
 report includes them and they survive `git worktree remove`.
 
 `node scripts/gate-report.mjs [--rules <id,id,...>]` prints blocks per week and gate, blocks per
-rule, rules that fired in more than one week, and (with `--rules`) rules that never fired. This
-answers the question users ask after setup: do the gates pay for themselves?
+rule, rules that fired in more than one week, (with `--rules`) rules that never fired, and the rows
+of `quality/rule-candidates.md` at `Seen` 2 or more, which wait for the agent to add them as rules.
+This answers the question users ask after setup: do the gates pay for themselves?
+`scripts/hook-status.sh`, which the agent runs at the start of each session, lists the same rows.
 
 ## Optional rule pack: text that lands on GitHub
 
@@ -296,6 +303,10 @@ robot emoji). Offer it in Phase 0; install only on request:
   string stays allowed.
 - The workflow runs the base branch's copy (bootstrap fallback on the PR that adds it), passes PR
   text through the environment only, and re-runs when the title or description is edited.
+- Before `gh pr create` or `gh pr edit`, the agent writes the description to a file and checks it
+  locally (the root `AGENTS.md` says so):
+  `PR_TITLE="..." PR_BODY="$(cat body.md)" node scripts/check-github-text.mjs --pr`. Otherwise a
+  bad description is found only by CI, after the PR is open.
 
 ## PR template
 

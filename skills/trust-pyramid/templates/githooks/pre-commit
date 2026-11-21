@@ -3,7 +3,14 @@
 # The agent Stop hook is the first gate, and agents cannot enable it themselves: remind on every
 # commit until it is on. A reminder only; it never blocks the commit.
 if [[ -f scripts/hook-status.sh ]] && ! bash scripts/hook-status.sh --quiet >&2; then echo >&2; fi
-if ! TRUST_GATE=pre-commit bash scripts/check.sh --staged; then
+TRUST_GATE=pre-commit bash scripts/check.sh --staged
+status=$?
+if (( status == 3 )); then
+  # check.sh found dependencies missing that these changes need (a fresh worktree): nothing to fix in the change.
+  echo
+  echo "Commit not made yet: install the dependencies first (bash scripts/check.sh --setup), then commit again."
+  exit 1
+elif (( status )); then
   echo
   echo "Commit blocked: fix the failures above. Do not bypass with --no-verify."
   exit 1
