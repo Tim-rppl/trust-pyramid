@@ -81,9 +81,34 @@ mkdir -p ~/.agents/skills && cp -R trust-pyramid/skills/trust-pyramid ~/.agents/
 
 4. 开一个新的 agent 会话，照常工作。agent 想结束时会自动跑检查，没通过就继续修。
 
-以后有新版本时，先更新 skill，再对 agent 说"upgrade trust-pyramid in this project"即可升级，你为项目做的定制会保留，详见[升级说明](docs/GUIDE.md#upgrading)（英文）。
-
 搭建结束时，agent 会证明每一项检查确实能拦住错误，用一个小功能走完整个流程，再用大白话汇报结果。
+
+## 升级
+
+有新版本发布时（见 [releases](https://github.com/Tim-rppl/trust-pyramid/releases)）：
+
+1. 更新 skill。Claude Code：运行 `/plugin marketplace update`。Codex：在你克隆的目录里 `git pull`，再把 `skills/trust-pyramid` 重新复制到 `~/.agents/skills/`。
+2. 在你的项目里对 agent 说：
+
+   ```text
+   Upgrade trust-pyramid in this project.
+   ```
+
+   用中文说"升级这个项目里的 trust-pyramid"也可以。
+
+3. agent 会在一个新分支里工作：对 skill 安装过的每个文件，像 git 合并分支一样，把新版本和你的修改合在一起；然后跑完所有检查，提一个 PR，用大白话说明每一处改动。
+4. 你看完 PR 后合并。如果 PR 里说 hook 设置有变化，再运行一次 `bash scripts/install-agent-hooks.sh`，然后开一个新的 agent 会话。
+
+注意事项：
+
+- **你的修改会保留。** 你没改过的文件直接换成新版；你改过的地方和新版改的地方如果不在同一行，会自动合在一起；你自己的 lint 规则、规则候选、审核记录和冒烟流程永远不会被动。
+- **如果你改过安装的文件，可能会遇到冲突。** 你和新版改了同一处时，不会覆盖任何一方：agent 会先处理，并在 PR 里逐条说明。这类文件每个出现一处冲突是正常的。
+- **0.4.0 之前装的项目**，第一次升级需要知道当初装的是哪个版本。知道的话告诉 agent（比如"我们装的是 0.3.0"）；不知道的话，agent 会把你的文件和每个版本对比来判断。
+- **升级必须走 PR，这是故意的。** 升级会改到受保护的关卡文件。CI 会提示"改动了受保护的文件"，并用 `main` 上的规则检查这个 PR；你合并之后，新版关卡才生效。
+- **保留 `scripts/check.sh` 里的 `trust-pyramid:project-start` 和 `project-end` 标记。** 两个标记之间是你自己的检查清单，升级永远不会改动。
+- **不要在自己电脑上运行 `scripts/trusted-check.sh`。** 它是给 CI 用的，会把你工作目录里的关卡文件重置成 `main` 上的版本。
+
+详细步骤见 [references/upgrade.md](skills/trust-pyramid/references/upgrade.md)（英文）。
 
 ## 装好之后会怎样
 

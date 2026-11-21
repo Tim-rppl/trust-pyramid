@@ -89,11 +89,46 @@ Claude Code users who prefer not to use plugins can copy the same folder to `~/.
 4. Start a new agent session and work as usual. When the agent tries to finish, the checks run; if
    they fail, it keeps fixing.
 
-To move to a new release later, update the skill and ask the agent to "upgrade trust-pyramid in this
-project". Your customizations are kept; see [upgrading](docs/GUIDE.md#upgrading).
-
 At the end of setup the agent shows that every check can fail, runs one feature through the whole
 loop, and reports the results in plain language.
+
+## Upgrade
+
+When a new release is out ([releases](https://github.com/Tim-rppl/trust-pyramid/releases)):
+
+1. Update the skill. Claude Code: `/plugin marketplace update`. Codex: `git pull` in your clone
+   and copy `skills/trust-pyramid` into `~/.agents/skills/` again.
+2. In your project, ask the agent:
+
+   ```text
+   Upgrade trust-pyramid in this project.
+   ```
+
+3. The agent works on a new branch. For each file the skill installed, it merges the new release
+   with your changes, the way git merges branches, then runs every check and opens a pull request
+   that explains each change in plain language.
+4. Review and merge the pull request. If it says the hook settings changed, run
+   `bash scripts/install-agent-hooks.sh` again and start a new agent session.
+
+Things to know:
+
+- **Your changes are kept.** Files you never edited are replaced. Your edits and the release's
+  changes are combined when they touch different lines. Your own lint rules, rule candidates,
+  review logs and smoke flows are never touched.
+- **Expect some conflicts if you edited the installed files.** When you and the release changed
+  the same lines, nothing is overwritten: the agent resolves it and explains each case in the pull
+  request. One conflict per such file is normal.
+- **Set up before 0.4.0?** The first upgrade needs the version you installed. Tell the agent if you
+  know it ("we installed 0.3.0"); otherwise it compares your files with each release to find it.
+- **It goes through a pull request on purpose.** The upgrade changes gate files, which are
+  protected. CI notes that protected files changed and checks the pull request with the rules on
+  `main`; the new gates take effect after you merge.
+- **Keep the `trust-pyramid:project-start` and `project-end` markers** in `scripts/check.sh`. The
+  lines between them are yours, and upgrades never change them.
+- **Don't run `scripts/trusted-check.sh` on your machine.** It is meant for CI and resets the gate
+  files in your working copy to the versions on `main`.
+
+Details: [references/upgrade.md](skills/trust-pyramid/references/upgrade.md).
 
 ## What to expect
 
