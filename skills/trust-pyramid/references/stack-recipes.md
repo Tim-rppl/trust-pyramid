@@ -129,3 +129,16 @@ The DB is recreated on every `up`; restart (`down`, `up`) after backend changes.
 - Static layers as above for the language.
 - Verification through the platform simulator tooling (screenshots, accessibility tree);
   keep the same CLI verbs (`up`, `click`, `snapshot`, `screenshot`, `errors`) so prompts transfer.
+
+## Test runners that never exit
+
+A test that leaves a socket, server or timer open keeps its process alive after it fails, and every
+gate waits for it. `scripts/check.sh` stops a check at its time limit, but give the runner its own
+limit too, so the failure names the test:
+
+- Node: `node --test --test-timeout=30000`; close servers and sockets in `t.after()` (an upgraded
+  WebSocket is not closed by `server.closeAllConnections()`; call `terminate()` on each client).
+- Vitest / Jest: `testTimeout` and `hookTimeout` in the config; Jest `--detectOpenHandles` to find
+  the leak.
+- pytest: `pytest-timeout` (`--timeout=30`).
+- Go: `go test -timeout 2m`.

@@ -239,6 +239,8 @@ JavaScript/Node because the verification tooling (Playwright) is; for non-Node s
 - No display: never install or launch Cypress or desktop browsers. Headless Playwright is enough.
 - Codex's sandbox blocks launching browsers; run the smoke flow outside the sandbox or leave it to CI.
 - On small machines (8 GB RAM), run one heavy job at a time.
+- Run long test suites in the background and read the result: a foreground tool call may be killed
+  by the host after a couple of minutes and reported as if the user had interrupted.
 
 ## Pitfalls seen in practice
 

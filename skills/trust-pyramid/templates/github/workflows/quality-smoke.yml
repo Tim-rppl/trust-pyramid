@@ -16,6 +16,7 @@ concurrency:
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 20  # a hung test fails the job instead of running for 6 hours
     env:
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
     steps:

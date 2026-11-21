@@ -6,6 +6,9 @@
 # After STOP_GATE_MAX_ATTEMPTS failed attempts (default 2), block once more with "stop and explain
 # to the user", then let the turn end with a visible systemMessage. No loops, no silent hand-over.
 # A failure the agent cannot fix (a protected gate file) should be handed over at once, not retried.
+# Agents often work in a git worktree (to keep the user's uncommitted changes apart). The host starts
+# this hook from the main checkout, so it also checks every linked worktree that has uncommitted
+# changes, with that worktree's own scripts/check.sh. STOP_GATE_WORKTREES=0 turns that off.
 [ -t 0 ] || cat >/dev/null  # hook input JSON on stdin is not needed
 # Find the repository from this script's location, not the current directory: the agent may have
 # changed directory, or the host may start hooks elsewhere. If it cannot be found, say so visibly
@@ -25,7 +28,25 @@ date '+%Y-%m-%d %H:%M:%S' > "$state_dir/stop-gate-last-run"
 
 max_attempts=${STOP_GATE_MAX_ATTEMPTS:-2}
 
-if output=$(TRUST_GATE=stop-hook bash scripts/check.sh --fast 2>&1); then
+run_checks() {
+  local out status=0 worktree top script
+  out=$(TRUST_GATE=stop-hook bash scripts/check.sh --fast 2>&1) || { status=1; printf '%s\n' "$out"; }
+  [[ "${STOP_GATE_WORKTREES:-1}" == 0 ]] && return $status
+  while IFS= read -r worktree; do
+    [[ -d "$worktree" ]] || continue
+    top=$(git -C "$worktree" rev-parse --show-toplevel 2>/dev/null) || continue
+    [[ "$top" == "$root" ]] && continue
+    [[ -n "$(git -C "$top" status --porcelain 2>/dev/null)" ]] || continue
+    script="$top/scripts/check.sh"; [[ -f "$script" ]] || script="$root/scripts/check.sh"
+    if ! out=$(cd "$top" && TRUST_GATE=stop-hook bash "$script" --fast 2>&1); then
+      status=1
+      printf 'In the git worktree %s (uncommitted changes there):\n%s\n' "$top" "$out"
+    fi
+  done < <(git worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p')
+  return $status
+}
+
+if output=$(run_checks); then
   rm -f "$counter" "$handover"
   echo '{}'
   exit 0
@@ -54,6 +75,7 @@ fi
   echo "Checks failed (attempt $count of $max_attempts). Fix the root cause before finishing."
   echo "Do not disable rules, skip tests or weaken assertions. If the fix needs a protected gate file you"
   echo "cannot edit, stop now and list the exact edits for the user instead of trying again."
+  grep -q '^In the git worktree ' <<<"$output" && echo "A failure under \"In the git worktree ...\" comes from that worktree's uncommitted changes. If that work is not yours (another session's), tell the user and finish instead of changing it."
   echo "$output"
 } >&2
 exit 2
