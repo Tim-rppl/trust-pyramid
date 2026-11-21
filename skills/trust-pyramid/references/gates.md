@@ -74,7 +74,21 @@ prefixes, a label, a command). Behavior:
 - Prints only failures. It recognizes `node --test` (spec and TAP), pytest (`-rf --tb=short`) and
   jest/vitest/go output; long lines are cut (assertion dumps of whole files hide the real error).
   For other runners, pick a reporter that prints a failure summary and extend `summarize()`.
-- Exit code is the only contract.
+- Exit code is the only contract: 0 pass, 1 a check failed, 3 setup needed (below).
+- **Dependencies (`SETUP`).** List what the checks need installed, one line per package:
+  `<path that exists once installed>|<install command>`, for example
+  `"web/node_modules/.package-lock.json|npm --prefix web ci"` (npm writes that file last, so an
+  install still running counts as missing). A fresh git worktree has none of it, and a missing
+  linter or compiler reads like a failure in the change. With a path missing, `check.sh` runs no
+  check, prints `setup needed` with the install commands, and exits 3; `scripts/check.sh --setup`
+  installs what is missing. Make sure CI's install step creates the same paths.
+- **Suites not run here (`NOT_RUN`).** Every test script of the project (`package.json` `test*`
+  scripts, pytest markers, emulator or database suites) is either a `CHECKS` entry or a `NOT_RUN`
+  entry, `<label>|<reason and where it does run>`. `check.sh` prints them after the results
+  (`• not run here: ...`, not in `--fast` runs), so a green list is not read as "every test ran".
+  When a change touches code covered only by such a suite, run that suite before saying it works.
+- `SETUP` and `NOT_RUN` sit in the `trust-pyramid:project-start local` section, which upgrades keep
+  as the project wrote it.
 - Every check has a time limit (120 s for `fast`, 900 s otherwise; `TRUST_CHECK_TIMEOUT` or a
   per-check `fast,timeout=<seconds>` changes it). A check that runs out is stopped with its child
   processes and reported as `✗ <label> (timed out after Ns)` with a hint: usually a socket, server
@@ -114,8 +128,11 @@ which a reminder inside a hook cannot.
   in a worktree. "Works in" means the hook input's `cwd` is inside it, or the session's transcript
   (`transcript_path`) mentions its path. Other sessions' worktrees are not checked, so their
   failures and slow tests never block this session. Failures are labeled with the worktree path.
-  `STOP_GATE_WORKTREES=all` checks every worktree with uncommitted changes, `none` only the
-  session's checkout. The per-machine deny list does not apply in worktrees, by design (gate changes
+  Paths are compared after normalizing (`C:\\a` in JSON, `C:/a` from git, `/c/a` in Git Bash,
+  `/cygdrive/c/a`, any letter case), and only as a whole path: a mention of `../app-feature/x`
+  does not select the worktree `../app`.
+  `STOP_GATE_WORKTREES=all` (or `1`) checks every worktree with uncommitted changes, `none` (or `0`)
+  only the session's checkout; another value checks every worktree and says so. The per-machine deny list does not apply in worktrees, by design (gate changes
   are made there and reach the default branch through a reviewed pull request).
   Register it as `bash "$CLAUDE_PROJECT_DIR/scripts/stop-gate.sh"` (Claude Code) so neither the
   executable bit nor the shebang matters (Windows). Codex has no project-directory variable; its
@@ -123,8 +140,14 @@ which a reminder inside a hook cannot.
   repository, prints the same kind of visible `systemMessage` instead of failing with exit 127.
 - Runs `scripts/check.sh`. Pass: prints `{}` to stdout and exits 0 (Codex requires JSON on stdout
   when a Stop hook exits 0; Claude Code accepts it).
-- Fail: writes the failures to stderr and exits 2. Both agents treat this as "keep working" and
-  feed stderr back as the reason.
+- Fail: prints `{"decision": "block", "reason": "<failures>"}` to stdout and exits 0. Both hosts
+  document this for Stop: the agent keeps working with the reason (Codex sends it as the next
+  prompt). It does not exit 2 with the failures on stderr: Claude Code reads a Stop hook that exits 2
+  with `No such file or directory` in stderr as a missing script and lets the turn end, and a failing
+  check can print exactly that. Keep the blocking path free of stray stderr.
+- Missing dependencies (`check.sh` exit 3, usual in a fresh worktree): blocks with "setup needed,
+  run `scripts/check.sh --setup`", which does not use up a fix attempt. After
+  `STOP_GATE_MAX_ATTEMPTS` such stops in a row it lets the turn end with a visible message.
 - Runs only checks marked `|fast` in `scripts/check.sh` (typecheck, lint, quick tests), so ending a
   turn costs seconds. Pre-commit and CI run everything.
 - Checks only **uncommitted** changes (`git diff HEAD` plus untracked files). Work the agent already
@@ -228,7 +251,8 @@ work, and `references/add-rule.md` asks the agent to write rules there. Both hol
 1. Feature work happens in the main checkout, where `.claude/settings.local.json` denies edits to
    gate files.
 2. A rule change happens in a separate worktree:
-   `git worktree add ../<repo>-rule-<name> -b rule/<name>`, then start the agent there. The deny list
+   `git worktree add ../<repo>-rule-<name> -b rule/<name>`, then `bash scripts/check.sh --setup`
+  there, then start the agent there. The deny list
    is per machine and not committed, so it is absent in the new worktree (do not list it in a
    `.worktreeinclude` file). The agent writes the rule, fixtures and test, runs `scripts/check.sh`,
    commits and opens a PR.

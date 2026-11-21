@@ -112,6 +112,11 @@ each host agent, CI, branch protection instructions, and the PR template. Instal
 `git update-index --chmod=+x scripts/*.sh .githooks/*` (on Windows `chmod +x` does not reach the
 index, and Linux CI then fails with `Permission denied`).
 
+In `scripts/check.sh`, list every test script the project has: each is a `CHECKS` entry or a
+`NOT_RUN` entry with the reason (needs an emulator, a database...) and where it runs instead. Fill
+`SETUP` with the install command of every package the checks need, then prove it in a fresh
+worktree: `check.sh` says `setup needed`, `check.sh --setup` installs, the checks run.
+
 Agents usually cannot write their own host config (Claude Code protects `.claude/settings*.json`,
 Codex protects `.codex/`), and neither host runs a hook that is not registered in its config: the
 Stop hook is OFF until the user enables it. Stage the hook configs in `quality/install/`
@@ -186,7 +191,7 @@ Commit to a new branch. Never push or deploy unless the user asks.
 
 | Template | Install as |
 |---|---|
-| `templates/scripts/check.sh` | `scripts/check.sh` (edit the `CHECKS` table; keep its `trust-pyramid:project-start/end` markers) |
+| `templates/scripts/check.sh` | `scripts/check.sh` (edit `CHECKS`, `SETUP` and `NOT_RUN`; keep the `trust-pyramid:project-start/end` markers) |
 | `templates/scripts/stop-gate.sh` | `scripts/stop-gate.sh` |
 | `templates/scripts/install-agent-hooks.sh` | `scripts/install-agent-hooks.sh` (the user runs it; asks, then merges) |
 | `templates/scripts/hook-status.sh` | `scripts/hook-status.sh` (is every gate on in this clone; pre-commit reminds until it is) |

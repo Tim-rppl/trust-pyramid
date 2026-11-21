@@ -29,6 +29,13 @@ function repoWithChecks() {
 // What the host sends a Stop hook on stdin (Claude Code and Codex): only these runs count as attempts.
 const hookInput = (fields = {}) => JSON.stringify({ hook_event_name: 'Stop', session_id: 's1', stop_hook_active: false, ...fields });
 const run = (dir, command, input = hookInput()) => spawnSync('bash', ['-c', command], { cwd: dir, encoding: 'utf8', input });
+// A host-started stop-gate.sh blocks with {"decision": "block", "reason"} on stdout and exit 0, never exit 2:
+// Claude Code reads exit 2 with "No such file or directory" in stderr as a missing script (#38).
+function verdict(result) {
+  assert.equal(result.status, 0, `a host run always exits 0: ${result.stderr}`);
+  const out = JSON.parse(result.stdout);
+  return { blocked: out.decision === 'block', reason: out.reason ?? '', message: out.systemMessage };
+}
 
 test('check.sh skips untouched packages and reports only the failure summary', () => {
   const { dir } = repoWithChecks();
@@ -54,7 +61,7 @@ test('check.sh supports several path prefixes per check and summarizes TAP outpu
   assert.doesNotMatch(result.stdout, /ok 20 - fine/);
 });
 
-test('stop-gate prints JSON on success and blocks with exit 2 on failure, then hands over visibly', () => {
+test('stop-gate prints JSON on success and blocks with a JSON decision on failure, then hands over visibly', () => {
   const { dir } = repoWithChecks();
   const pass = run(dir, 'scripts/stop-gate.sh');
   assert.equal(pass.status, 0);
@@ -63,19 +70,20 @@ test('stop-gate prints JSON on success and blocks with exit 2 on failure, then h
   writeFiles(dir, { 'app/value.txt': 'broken\n' });
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     const blocked = run(dir, 'scripts/stop-gate.sh');
-    assert.equal(blocked.status, 2, `attempt ${attempt} should block`);
-    assert.match(blocked.stderr, new RegExp(`attempt ${attempt} of 2`));
-    assert.match(blocked.stderr, /protected gate file/);
-    assert.match(blocked.stderr, /not ok - value/);
+    assert.equal(blocked.stderr, '', 'nothing on stderr for the host to misread');
+    const { blocked: isBlocked, reason } = verdict(blocked);
+    assert.ok(isBlocked, `attempt ${attempt} should block`);
+    assert.match(reason, new RegExp(`^Checks failed \\(attempt ${attempt} of 2\\)`));
+    assert.match(reason, /protected gate file/);
+    assert.match(reason, /not ok - value/);
   }
-  const explain = run(dir, 'scripts/stop-gate.sh');
-  assert.equal(explain.status, 2, 'the 3rd stop is blocked once more, asking the agent to explain to the user');
-  assert.match(explain.stderr, /Tell the user in plain language/);
+  const explain = verdict(run(dir, 'scripts/stop-gate.sh'));
+  assert.ok(explain.blocked, 'the 3rd stop is blocked once more, asking the agent to explain to the user');
+  assert.match(explain.reason, /Tell the user in plain language/);
   const handedOver = run(dir, 'scripts/stop-gate.sh');
   assert.equal(handedOver.status, 0);
   assert.match(JSON.parse(handedOver.stdout).systemMessage, /human needs to look/);
-  const nextRound = run(dir, 'scripts/stop-gate.sh');
-  assert.equal(nextRound.status, 2, 'a new turn starts counting again');
+  assert.match(verdict(run(dir, 'scripts/stop-gate.sh')).reason, /attempt 1 of 2/, 'a new turn starts counting again');
 });
 
 test('a check that never exits is stopped at its time limit, with the children that hold the output', () => {
@@ -250,9 +258,9 @@ test('STOP_GATE_MAX_ATTEMPTS changes the cap', () => {
   const { dir } = repoWithChecks();
   writeFiles(dir, { 'app/value.txt': 'broken\n' });
   const first = spawnSync('bash', ['-c', 'scripts/stop-gate.sh'], { cwd: dir, encoding: 'utf8', input: hookInput(), env: { ...process.env, STOP_GATE_MAX_ATTEMPTS: '1' } });
-  assert.match(first.stderr, /attempt 1 of 1/);
+  assert.match(verdict(first).reason, /attempt 1 of 1/);
   const second = spawnSync('bash', ['-c', 'scripts/stop-gate.sh'], { cwd: dir, encoding: 'utf8', input: hookInput(), env: { ...process.env, STOP_GATE_MAX_ATTEMPTS: '1' } });
-  assert.match(second.stderr, /Stop trying to fix them now/);
+  assert.match(verdict(second).reason, /Stop trying to fix them now/);
 });
 
 test('gates still run when the scripts were committed without the executable bit (setup from Windows)', () => {
@@ -273,9 +281,8 @@ test('gates still run when the scripts were committed without the executable bit
   assert.deepEqual(JSON.parse(run(dir, 'bash scripts/stop-gate.sh').stdout), {});
   writeFiles(dir, { 'app/value.txt': 'broken\n' });
   const stop = run(dir, 'bash scripts/stop-gate.sh');
-  assert.equal(stop.status, 2);
   assert.doesNotMatch(stop.stderr, /Permission denied/);
-  assert.match(stop.stderr, /not ok - value/);
+  assert.match(verdict(stop).reason, /not ok - value/);
   const trusted = run(dir, 'bash scripts/trusted-check.sh HEAD');
   assert.doesNotMatch(trusted.stdout + trusted.stderr, /Permission denied/);
   assert.match(trusted.stdout, /✓ no new suppression comments/);
@@ -344,17 +351,20 @@ test('the Stop hook checks the worktrees this session works in, not other sessio
   assert.deepEqual(JSON.parse(hook().stdout), {}, 'another session\'s broken worktree does not block this session');
 
   writeFiles(mine, { 'app/value.txt': 'broken\n' });
-  const blocked = hook();
-  assert.equal(blocked.status, 2, 'the worktree in this session\'s transcript is checked');
-  assert.match(blocked.stderr, /In the git worktree .*agent work\/mine \(uncommitted changes there\):\n✗ app: value is ok/);
-  assert.doesNotMatch(blocked.stderr, /In the git worktree .*\/other /);
+  const blocked = verdict(hook());
+  assert.ok(blocked.blocked, 'the worktree in this session\'s transcript is checked');
+  assert.match(blocked.reason, /In the git worktree .*agent work\/mine \(uncommitted changes there\):\n✗ app: value is ok/);
+  assert.doesNotMatch(blocked.reason, /In the git worktree .*\/other /);
 
   writeFileSync(transcript, '');
-  assert.equal(hook({ session_id: 's2', cwd: mine }).status, 2, 'the worktree containing the hook cwd is checked');
-  assert.equal(hook({ session_id: 's3' }).status, 0, 'neither in the transcript nor the cwd: not checked');
-  const all = hook({ session_id: 's4' }, { STOP_GATE_WORKTREES: 'all' });
-  assert.match(all.stderr, /agent work\/mine[^]*\/other \(uncommitted/, 'STOP_GATE_WORKTREES=all checks every worktree');
-  assert.equal(hook({ session_id: 's5', cwd: mine }, { STOP_GATE_WORKTREES: 'none' }).status, 0);
+  assert.ok(verdict(hook({ session_id: 's2', cwd: mine })).blocked, 'the worktree containing the hook cwd is checked');
+  assert.ok(!verdict(hook({ session_id: 's3' })).blocked, 'neither in the transcript nor the cwd: not checked');
+  const all = verdict(hook({ session_id: 's4' }, { STOP_GATE_WORKTREES: 'all' }));
+  assert.match(all.reason, /agent work\/mine[^]*\/other \(uncommitted/, 'STOP_GATE_WORKTREES=all checks every worktree');
+  assert.match(verdict(hook({ session_id: 's6' }, { STOP_GATE_WORKTREES: '1' })).reason, /\/other \(uncommitted/, '1 means all, as before 0.4.3');
+  const unknown = verdict(hook({ session_id: 's7' }, { STOP_GATE_WORKTREES: 'mine' }));
+  assert.match(unknown.reason, /^STOP_GATE_WORKTREES=mine is not session, all or none, so every worktree was checked/);
+  assert.ok(!verdict(hook({ session_id: 's5', cwd: mine }, { STOP_GATE_WORKTREES: 'none' })).blocked);
 });
 
 test('manual stop-gate runs do not use up attempts; attempts are counted per session', () => {
@@ -364,9 +374,9 @@ test('manual stop-gate runs do not use up attempts; attempts are counted per ses
   assert.equal(manual.status, 2);
   assert.match(manual.stderr, /Manual run: no Stop hook input, so this does not count/);
   run(dir, 'bash scripts/stop-gate.sh', '');
-  assert.match(run(dir, 'bash scripts/stop-gate.sh').stderr, /attempt 1 of 2/, 'the first real Stop is attempt 1');
-  assert.match(run(dir, 'bash scripts/stop-gate.sh').stderr, /attempt 2 of 2/);
-  assert.match(run(dir, 'bash scripts/stop-gate.sh', hookInput({ session_id: 's2' })).stderr, /attempt 1 of 2/, 'a new session starts again');
+  assert.match(verdict(run(dir, 'bash scripts/stop-gate.sh')).reason, /attempt 1 of 2/, 'the first real Stop is attempt 1');
+  assert.match(verdict(run(dir, 'bash scripts/stop-gate.sh')).reason, /attempt 2 of 2/);
+  assert.match(verdict(run(dir, 'bash scripts/stop-gate.sh', hookInput({ session_id: 's2' }))).reason, /attempt 1 of 2/, 'a new session starts again');
 });
 
 test('interceptions in a linked worktree are logged in the main checkout, with the worktree', () => {
@@ -407,7 +417,7 @@ test('gate interceptions are logged per gate with rule IDs, and gate-report summ
   const test = join(dir, 'app/test.sh');
   writeFileSync(test, readFileSync(test, 'utf8').replace('echo "not ok - value"', 'echo "not ok - value"\necho "app/x.tsx:4:18: UI text is not translated. Use t(key) and var(--color-text) [Error/project(no-raw-ui-text)]"\necho "  x eslint(no-unused-vars): expected String(value) to be used"\necho "app/y.py:3: TP001 read env vars in config.py, not via os.environ(KEY)"\necho "Dates use ISO8601 strings"'));
   writeFiles(dir, { 'app/value.txt': 'broken\n' });
-  assert.equal(run(dir, 'bash scripts/stop-gate.sh').status, 2);
+  assert.ok(verdict(run(dir, 'bash scripts/stop-gate.sh')).blocked);
   assert.equal(run(dir, 'bash scripts/check.sh').status, 1, 'a manual run is not an interception');
   const summary = join(dir, 'summary.md');
   const ci = spawnSync('bash', ['-c', 'TRUST_GATE=ci bash scripts/check.sh --all'], { cwd: dir, encoding: 'utf8', env: { ...process.env, GITHUB_STEP_SUMMARY: summary } });
@@ -439,4 +449,79 @@ test('gate-report flags rules that keep coming back across weeks', async () => {
   assert.deepEqual(report.repeated, ['a(x)']);
   assert.deepEqual(report.neverFired, ['c(z)']);
   assert.ok(report.rules.some(rule => rule.rule === '(check) unit tests'), 'failures without a rule ID are counted per check');
+});
+
+test('the first failed Stop of a session blocks, whatever the checks print (#38)', () => {
+  const { dir } = repoWithChecks();
+  const test = join(dir, 'app/test.sh');
+  // Output the host could misread, and text that needs JSON escaping.
+  writeFileSync(test, readFileSync(test, 'utf8').replace('echo "not ok - value"',
+    'echo "not ok - value"\necho "cat: fixtures/x.json: No such file or directory"\nprintf \'quote " backslash \\\\ tab\\t \\033[31mred\\033[0m 中文\\n\''));
+  writeFiles(dir, { 'app/value.txt': 'broken\n' });
+  assert.ok(!existsSync(join(dir, '.quality-state/stop-gate-count')), 'no counter yet: the first Stop of the session');
+  const first = run(dir, 'bash scripts/stop-gate.sh');
+  assert.equal(first.stderr, '');
+  const { blocked, reason } = verdict(first);
+  assert.ok(blocked);
+  assert.match(reason, /^Checks failed \(attempt 1 of 2\)/);
+  assert.match(reason, /No such file or directory/);
+  assert.match(reason, /quote " backslash \\ tab\t red 中文/, 'escaped as JSON, colour codes removed');
+});
+
+test('session worktrees are matched however the path is spelled, and only as a whole path (#39)', () => {
+  const { dir, git } = repoWithChecks();
+  const base = tempDir();
+  const wt = join(base, 'wt');
+  git('worktree', 'add', '-q', '-b', 'fix/wt', wt);
+  const real = spawnSync('git', ['-C', wt, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' }).stdout.trim();
+  writeFiles(wt, { 'app/value.txt': 'broken\n' });
+  const transcript = join(base, 'session.jsonl');
+  const hook = (mention, session) => {
+    writeFileSync(transcript, JSON.stringify({ type: 'tool_use', input: { command: `cd ${mention} && ls` } }) + '\n');
+    return verdict(spawnSync('bash', [join(dir, 'scripts/stop-gate.sh')], { cwd: dir, encoding: 'utf8', input: hookInput({ session_id: session, cwd: dir, transcript_path: transcript }) }));
+  };
+  assert.ok(!hook(`${real}-feature/app/x.ts`, 'a').blocked, 'a longer path that starts with the worktree path is another directory');
+  assert.ok(!hook(`${real}2`, 'b').blocked);
+  assert.ok(hook(`${real}/app`, 'c').blocked);
+  assert.ok(hook(real.toUpperCase(), 'd').blocked, 'letter case does not matter');
+  assert.ok(hook(real.replaceAll('/', '\\'), 'e').blocked, 'backslashes, as Windows tools write them');
+  const drive = /^([A-Za-z]):\/(.*)$/.exec(real);
+  if (drive) assert.ok(hook(`/${drive[1].toLowerCase()}/${drive[2]}`.toLowerCase(), 'f').blocked, 'the Git Bash form /c/...');
+});
+
+test('missing dependencies stop the checks with "setup needed", and do not use up fix attempts (#40)', () => {
+  const { dir, git } = repoWithChecks();
+  const check = join(dir, 'scripts/check.sh');
+  writeFileSync(check, readFileSync(check, 'utf8').replace(/SETUP=\([\s\S]*?\n\)/, 'SETUP=(\n  "deps/installed|mkdir -p deps && touch deps/installed"\n)'));
+  git('add', '-A');
+  git('commit', '-q', '-m', 'setup list', '--no-verify');
+  writeFiles(dir, { 'app/value.txt': 'broken\n' });
+
+  const plain = run(dir, 'bash scripts/check.sh');
+  assert.equal(plain.status, 3);
+  assert.match(plain.stdout, /^setup needed in .*no check ran \(not a problem in the change\)/);
+  assert.match(plain.stdout, /missing deps\/installed {2}\(installed by: mkdir -p deps && touch deps\/installed\)/);
+  assert.doesNotMatch(plain.stdout, /✗ app/);
+
+  for (let stop = 1; stop <= 2; stop += 1) {
+    const { blocked, reason } = verdict(run(dir, 'bash scripts/stop-gate.sh'));
+    assert.ok(blocked);
+    assert.match(reason, /^Setup needed before the checks can run\. This is not a problem in your change and does not use up a fix attempt/);
+  }
+  assert.match(verdict(run(dir, 'bash scripts/stop-gate.sh')).message, /dependencies are still missing/, 'no endless loop when installing fails');
+
+  const setup = run(dir, 'bash scripts/check.sh --setup');
+  assert.equal(setup.status, 0, setup.stdout);
+  assert.match(setup.stdout, /✓ dependencies installed/);
+  assert.match(verdict(run(dir, 'bash scripts/stop-gate.sh')).reason, /^Checks failed \(attempt 1 of 2\)/, 'setup stops did not count');
+});
+
+test('check.sh names the test suites it does not run, except in the fast Stop hook run (#41)', () => {
+  const { dir } = repoWithChecks();
+  const check = join(dir, 'scripts/check.sh');
+  writeFileSync(check, readFileSync(check, 'utf8').replace(/NOT_RUN=\([\s\S]*?\n\)/, 'NOT_RUN=(\n  "functions: emulator tests|needs the Firebase emulator; CI runs them"\n)'));
+  const all = run(dir, 'bash scripts/check.sh --all');
+  assert.equal(all.status, 0);
+  assert.match(all.stdout, /✓ app: slow suite\n• not run here: functions: emulator tests \(needs the Firebase emulator; CI runs them\)/);
+  assert.doesNotMatch(run(dir, 'bash scripts/check.sh --fast --all').stdout, /not run here/);
 });
