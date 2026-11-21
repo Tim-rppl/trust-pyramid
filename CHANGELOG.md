@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.4.3 - 2026-11-21
+
+Fixes from a field test of 0.4.2 (#32-#36).
+
+- **Stop hook checks only this session's worktrees:** the session's checkout, the worktree containing
+  the hook's `cwd`, and worktrees the session's transcript mentions. Other sessions' worktrees no
+  longer block or slow down this session. `STOP_GATE_WORKTREES=all|none` (#36).
+- **Manual runs do not use up attempts:** only runs started by the host (hook input with
+  `hook_event_name`) count, per `session_id`, and only they update the "Stop hook last ran" proof in
+  `hook-status.sh` (#35).
+- **Worktree interceptions are logged:** `gate-log.sh` writes to the main checkout's log, with a
+  `worktree` field, so `gate-report.mjs` counts them (#32). It also escapes backslashes correctly.
+- **More skipped tests are caught:** `it.skip (` with a space, `const later = it.skip`, runtime
+  skips such as `t.skip()`, `ctx.skip('why')`, `this.skip()` (#34).
+- **TypeScript tests are type-checked:** setup docs and the TypeScript recipe add a
+  `tsconfig.test.json` when the project's config leaves tests out, with a baseline for existing
+  errors; the reviewer prompt looks for tests that cannot fail, such as fakes that no longer match
+  their interface (#33).
+
+### Upgrade notes
+
+- `scripts/stop-gate.sh`, `scripts/gate-log.sh`, `scripts/no-suppressions.sh`,
+  `scripts/hook-status.sh` and `quality/reviewer-prompt.md` change; the upgrade merges them.
+- To test the Stop hook by hand, run `echo '{}' | bash scripts/stop-gate.sh`; it no longer affects
+  the agent's attempts. `hook-status.sh` shows "last ran" only after a real Stop in a new session.
+- TypeScript projects: check whether the typecheck covers the test files (`references/stack-recipes.md`).
+
 ## 0.4.2 - 2026-11-21
 
 Fixes from a field test of 0.4.1 on a real project (#26, #27, #28; report in #29).

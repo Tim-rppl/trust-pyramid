@@ -109,12 +109,14 @@ which a reminder inside a hook cannot.
   changed directory, or the host may start hooks elsewhere). If it cannot find it, it prints
   `stop-gate: cannot find the repository` as a visible `systemMessage` and lets the turn end: never
   silent, and never a block the agent cannot clear (exit 2 there would loop until the host's cap).
-- Also checks every linked git worktree with uncommitted changes, with that worktree's own
-  `scripts/check.sh`: the host starts the hook from the main checkout, but agents often edit in a
-  worktree. Failures are labeled with the worktree path; if it is another session's work, the agent
-  tells the user instead of changing it. `STOP_GATE_WORKTREES=0` turns this off. The per-machine
-  deny list does not apply in worktrees, by design (gate changes are made there and reach the
-  default branch through a reviewed pull request).
+- Also checks the linked git worktrees this session works in, with each worktree's own
+  `scripts/check.sh`: the host starts the hook from the session's checkout, but agents often edit
+  in a worktree. "Works in" means the hook input's `cwd` is inside it, or the session's transcript
+  (`transcript_path`) mentions its path. Other sessions' worktrees are not checked, so their
+  failures and slow tests never block this session. Failures are labeled with the worktree path.
+  `STOP_GATE_WORKTREES=all` checks every worktree with uncommitted changes, `none` only the
+  session's checkout. The per-machine deny list does not apply in worktrees, by design (gate changes
+  are made there and reach the default branch through a reviewed pull request).
   Register it as `bash "$CLAUDE_PROJECT_DIR/scripts/stop-gate.sh"` (Claude Code) so neither the
   executable bit nor the shebang matters (Windows). Codex has no project-directory variable; its
   command finds the repository from the session directory (subfolders work) and, outside any
@@ -131,6 +133,10 @@ which a reminder inside a hook cannot.
 - Shared or local: committed in `.claude/settings.json`, the hook runs for everyone who uses Claude
   Code on the project; in `.claude/settings.local.json` it runs only on this machine. Ask the user in
   Phase 5. Codex reads `.codex/hooks.json` (committed) and asks each user to trust it.
+- Only runs started by the host count: the hook input on stdin carries `hook_event_name` and
+  `session_id`. Attempts are counted per session, and only those runs update
+  `.quality-state/stop-gate-last-run` (the proof `hook-status.sh` shows). Running the script by hand
+  (`echo '{}' | bash scripts/stop-gate.sh`) reports the same result and counts nothing.
 - After `STOP_GATE_MAX_ATTEMPTS` failed attempts (default 2) it blocks once more with "stop and
   explain the failure to the user", then lets the turn end with a visible `systemMessage`. The
   failure message also tells the agent to hand over at once when the fix needs a protected file.
@@ -238,7 +244,9 @@ With `TRUST_GATE` set, `scripts/check.sh` records every failing check through
 job `ci`; trusted-check also records new suppression comments. Each block becomes one line in
 `.quality-state/gate-log.jsonl` (date, gate, check label, rule IDs found in the output, such as
 `project(no-raw-ui-text)` or `TP001`), and in CI a line in the job summary. Manual runs are not
-logged. The local log is per machine and gitignored; CI's record is the job summary.
+logged. The local log is per machine and gitignored; CI's record is the job summary. Checks that
+fail in a linked worktree are logged in the main checkout's log, with a `worktree` field, so the
+report includes them and they survive `git worktree remove`.
 
 `node scripts/gate-report.mjs [--rules <id,id,...>]` prints blocks per week and gate, blocks per
 rule, rules that fired in more than one week, and (with `--rules`) rules that never fired. This

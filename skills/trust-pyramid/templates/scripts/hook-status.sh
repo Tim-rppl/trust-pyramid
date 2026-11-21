@@ -21,9 +21,10 @@ registered() { local f; for f in "$@"; do [[ -f "$f" ]] && grep -q 'scripts/stop
 main=""
 if [[ -f .git ]]; then
   main=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
-  report "• This is a linked git worktree of $main. The Stop hook registered there also checks this worktree's"
-  report "  uncommitted changes. The per-machine deny list does not apply here, by design: gate changes are"
-  report "  made in a worktree and reach the default branch through a reviewed pull request."
+  report "• This is a linked git worktree of $main. The Stop hook registered there also checks this worktree"
+  report "  when the agent session works in it (its cwd, or a path its transcript mentions). The per-machine deny"
+  report "  list does not apply here, by design: gate changes are made in a worktree and reach the default branch"
+  report "  through a reviewed pull request."
 fi
 claude_settings=(.claude/settings.json .claude/settings.local.json)
 codex_settings=(.codex/hooks.json)

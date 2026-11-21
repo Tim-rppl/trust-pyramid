@@ -80,6 +80,12 @@ test('a newly skipped or focused test is rejected, in test files only', () => {
     ['tests/test_api.py', '    pytest.skip("later")'],
     ['pkg/api_test.go', '\tt.Skip("later")'],
     ['src/__tests__/app.js', "xit('adds', () => {});"],
+    ['src/app.test.ts', "it.skip ('x', () => {});"],
+    ['src/app.test.ts', 'const later = it.skip; later("x", () => {});'],
+    ['src/app.test.ts', "it('x', (t) => { t.skip(); });"],
+    ['src/app.test.ts', "it('x', async (ctx) => { ctx.skip('flaky on CI'); });"],
+    ['src/app.test.ts', "it('x', function () { this.skip(); });"],
+    ['src/app.test.ts', "it('x', (t) => { t.todo(); });"],
   ];
   for (const [path, line] of skipped) {
     const { dir, git } = project();
@@ -94,7 +100,7 @@ test('a newly skipped or focused test is rejected, in test files only', () => {
   const { dir, git } = project();
   writeFiles(dir, {
     'src/menu.js': "export const items = [{ label: 'Skip intro', skip: true }];\nit.skip = 1;\n",
-    'src/app.test.js': "it('skips nothing', () => { const todo = { todo: 'buy milk' }; expect(skipIntro(todo)).toBe(true); });\n",
+    'src/app.test.js': "it('skips nothing', () => { const todo = { todo: 'buy milk' }; expect(skipIntro(todo)).toBe(true); });\nit('pages', async () => { await db.find().skip(20).limit(10); expect(rows.skip).toBeUndefined(); });\n",
   });
   git('add', '-A');
   const clean = spawnSync('bash', ['scripts/no-suppressions.sh', 'base'], { cwd: dir, encoding: 'utf8' });

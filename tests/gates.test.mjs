@@ -1,7 +1,7 @@
 // check.sh, stop-gate.sh and pre-commit behave as documented in references/gates.md.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -26,7 +26,9 @@ function repoWithChecks() {
   return { dir, git };
 }
 
-const run = (dir, command, input = '{"stop_hook_active":false}') => spawnSync('bash', ['-c', command], { cwd: dir, encoding: 'utf8', input });
+// What the host sends a Stop hook on stdin (Claude Code and Codex): only these runs count as attempts.
+const hookInput = (fields = {}) => JSON.stringify({ hook_event_name: 'Stop', session_id: 's1', stop_hook_active: false, ...fields });
+const run = (dir, command, input = hookInput()) => spawnSync('bash', ['-c', command], { cwd: dir, encoding: 'utf8', input });
 
 test('check.sh skips untouched packages and reports only the failure summary', () => {
   const { dir } = repoWithChecks();
@@ -189,6 +191,8 @@ test('hook-status flags disableAllHooks and shows when the Stop hook last ran', 
   sh('bash scripts/install-agent-hooks.sh --yes');
   assert.match(sh('bash scripts/hook-status.sh').stdout, /has not run yet in this clone/);
   sh('bash scripts/stop-gate.sh');
+  assert.match(sh('bash scripts/hook-status.sh').stdout, /has not run yet in this clone/, 'a manual run is no proof that the host runs the hook');
+  spawnSync('bash', ['scripts/stop-gate.sh'], { cwd: dir, encoding: 'utf8', input: hookInput(), env: { ...process.env, HOME: home } });
   assert.match(sh('bash scripts/hook-status.sh').stdout, /Stop hook last ran: \d{4}-\d\d-\d\d/);
 
   writeFiles(home, { '.claude/settings.json': '{"disableAllHooks": true}' });
@@ -245,9 +249,9 @@ test('the Stop hook runs only fast checks; pre-commit and CI run everything', ()
 test('STOP_GATE_MAX_ATTEMPTS changes the cap', () => {
   const { dir } = repoWithChecks();
   writeFiles(dir, { 'app/value.txt': 'broken\n' });
-  const first = spawnSync('bash', ['-c', 'scripts/stop-gate.sh'], { cwd: dir, encoding: 'utf8', input: '{}', env: { ...process.env, STOP_GATE_MAX_ATTEMPTS: '1' } });
+  const first = spawnSync('bash', ['-c', 'scripts/stop-gate.sh'], { cwd: dir, encoding: 'utf8', input: hookInput(), env: { ...process.env, STOP_GATE_MAX_ATTEMPTS: '1' } });
   assert.match(first.stderr, /attempt 1 of 1/);
-  const second = spawnSync('bash', ['-c', 'scripts/stop-gate.sh'], { cwd: dir, encoding: 'utf8', input: '{}', env: { ...process.env, STOP_GATE_MAX_ATTEMPTS: '1' } });
+  const second = spawnSync('bash', ['-c', 'scripts/stop-gate.sh'], { cwd: dir, encoding: 'utf8', input: hookInput(), env: { ...process.env, STOP_GATE_MAX_ATTEMPTS: '1' } });
   assert.match(second.stderr, /Stop trying to fix them now/);
 });
 
@@ -324,20 +328,61 @@ test('the Codex Stop hook command works from a subdirectory and hands over visib
   }
 });
 
-test('the Stop hook started from the main checkout also checks git worktrees with uncommitted changes', () => {
+test('the Stop hook checks the worktrees this session works in, not other sessions\' worktrees', () => {
   const { dir, git } = repoWithChecks();
-  const worktree = join(tempDir(), 'agent work', 'wt'); // a space in the path, as in real folders
-  git('worktree', 'add', '-q', '-b', 'fix/thing', worktree);
-  const hook = (env = {}) => spawnSync('bash', [join(dir, 'scripts/stop-gate.sh')], { cwd: dir, encoding: 'utf8', input: '{}', env: { ...process.env, ...env } });
+  const base = tempDir();
+  const mine = join(base, 'agent work', 'mine'); // a space in the path, as in real folders
+  const other = join(base, 'other');
+  git('worktree', 'add', '-q', '-b', 'fix/mine', mine);
+  git('worktree', 'add', '-q', '-b', 'fix/other', other);
+  const real = path => spawnSync('git', ['-C', path, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' }).stdout.trim();
+  const transcript = join(base, 'session.jsonl');
+  writeFileSync(transcript, JSON.stringify({ type: 'tool_use', input: { file_path: `${real(mine)}/app/value.txt` } }) + '\n');
+  const hook = (fields = {}, env = {}) => spawnSync('bash', [join(dir, 'scripts/stop-gate.sh')], { cwd: dir, encoding: 'utf8', input: hookInput({ cwd: dir, transcript_path: transcript, ...fields }), env: { ...process.env, ...env } });
 
-  assert.deepEqual(JSON.parse(hook().stdout), {}, 'a clean worktree is not checked');
-  writeFiles(worktree, { 'app/value.txt': 'broken\n' });
+  writeFiles(other, { 'app/value.txt': 'broken\n' });
+  assert.deepEqual(JSON.parse(hook().stdout), {}, 'another session\'s broken worktree does not block this session');
+
+  writeFiles(mine, { 'app/value.txt': 'broken\n' });
   const blocked = hook();
-  assert.equal(blocked.status, 2, 'the main checkout is clean, but the worktree is not');
-  assert.match(blocked.stderr, /In the git worktree .*agent work\/wt \(uncommitted changes there\):\n✗ app: value is ok/);
-  assert.match(blocked.stderr, /If that work is not yours \(another session's\), tell the user/);
-  assert.match(blocked.stderr, /not ok - value/);
-  assert.equal(hook({ STOP_GATE_WORKTREES: '0' }).status, 0, 'STOP_GATE_WORKTREES=0 checks the main checkout only');
+  assert.equal(blocked.status, 2, 'the worktree in this session\'s transcript is checked');
+  assert.match(blocked.stderr, /In the git worktree .*agent work\/mine \(uncommitted changes there\):\n✗ app: value is ok/);
+  assert.doesNotMatch(blocked.stderr, /In the git worktree .*\/other /);
+
+  writeFileSync(transcript, '');
+  assert.equal(hook({ session_id: 's2', cwd: mine }).status, 2, 'the worktree containing the hook cwd is checked');
+  assert.equal(hook({ session_id: 's3' }).status, 0, 'neither in the transcript nor the cwd: not checked');
+  const all = hook({ session_id: 's4' }, { STOP_GATE_WORKTREES: 'all' });
+  assert.match(all.stderr, /agent work\/mine[^]*\/other \(uncommitted/, 'STOP_GATE_WORKTREES=all checks every worktree');
+  assert.equal(hook({ session_id: 's5', cwd: mine }, { STOP_GATE_WORKTREES: 'none' }).status, 0);
+});
+
+test('manual stop-gate runs do not use up attempts; attempts are counted per session', () => {
+  const { dir } = repoWithChecks();
+  writeFiles(dir, { 'app/value.txt': 'broken\n' });
+  const manual = run(dir, 'bash scripts/stop-gate.sh', '{}');
+  assert.equal(manual.status, 2);
+  assert.match(manual.stderr, /Manual run: no Stop hook input, so this does not count/);
+  run(dir, 'bash scripts/stop-gate.sh', '');
+  assert.match(run(dir, 'bash scripts/stop-gate.sh').stderr, /attempt 1 of 2/, 'the first real Stop is attempt 1');
+  assert.match(run(dir, 'bash scripts/stop-gate.sh').stderr, /attempt 2 of 2/);
+  assert.match(run(dir, 'bash scripts/stop-gate.sh', hookInput({ session_id: 's2' })).stderr, /attempt 1 of 2/, 'a new session starts again');
+});
+
+test('interceptions in a linked worktree are logged in the main checkout, with the worktree', () => {
+  const { dir, git } = repoWithChecks();
+  copyTemplate('scripts/gate-log.sh', dir);
+  git('add', '-A');
+  git('commit', '-q', '-m', 'gate log', '--no-verify');
+  const worktree = join(tempDir(), 'wt');
+  git('worktree', 'add', '-q', '-b', 'fix/x', worktree);
+  writeFiles(worktree, { 'app/value.txt': 'broken\n' });
+  assert.equal(run(worktree, 'TRUST_GATE=pre-commit bash scripts/check.sh').status, 1);
+  assert.ok(!existsSync(join(worktree, '.quality-state/gate-log.jsonl')), 'nothing is left in the worktree');
+  const [entry] = readFileSync(join(dir, '.quality-state/gate-log.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
+  assert.equal(entry.gate, 'pre-commit');
+  assert.equal(entry.check, 'app: value is ok');
+  assert.match(entry.worktree, /\/wt$/);
 });
 
 test('hook-status in a linked worktree reads the main checkout\'s hook settings and says what covers it', () => {

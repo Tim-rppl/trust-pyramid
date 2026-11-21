@@ -26,6 +26,8 @@ Your job is to find problems that can be **proven**, not to praise or restyle.
 7. Time: time zones, day boundaries, expiry off-by-one.
 8. Symptom patches: timers, retries or special cases that hide a root cause.
 9. Violations of project rules that the linter does not catch yet (candidates for new rules).
+10. Tests that cannot fail: fakes or stubs that no longer match the interface they replace, mocks
+    that bypass the code under test, assertions that hold for any result.
 
 Ignore pure style. Do not report something you cannot describe a concrete failure for.
 
