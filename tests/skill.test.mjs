@@ -139,6 +139,8 @@ test('the installed project carries the rule workflow, and nothing tells agents 
   const addRule = readFileSync(join(SKILL, 'templates/quality/ADD_RULE.md'), 'utf8');
   assert.match(addRule, /git worktree add/);
   assert.match(addRule, /bash scripts\/check\.sh --setup/);
+  assert.match(addRule, /\*\*ask\*\* the user[^]*Do not create the worktree before they say yes/, 'the user\'s yes authorizes editing gate files (auto-mode permission check)');
+  assert.match(agents, /ask the user whether you may add it, and on a yes add it yourself/);
   assert.match(addRule, /absolute paths/i, 'relative paths after cd are refused by the main checkout\'s deny list (#46)');
   const ledger = readFileSync(join(SKILL, 'templates/quality/rule-candidates.md'), 'utf8');
   assert.match(ledger, /"The file is protected" or "a\s+maintainer has to add it" is never a reason/);

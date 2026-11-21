@@ -609,6 +609,7 @@ const LEDGER = `# Rule candidates
 | client IP read from X-Forwarded-For | 2 | api/ip.ts:12 | seen once at first | add a lint rule |
 | fakes drift from interfaces | 3 (twice in one PR) | test/fake.ts:4 | not visible in source | test |
 | only once | 1 | a.ts:1 | seen once so far | wait |
+| raw SQL in handlers | 4 | api/x.ts:9 | Blocked until the 12 existing violations are fixed | fix them |
 | | | | | |
 
 | A later table | Seen |
@@ -626,10 +627,13 @@ test('rule candidates seen twice are listed by hook-status (not in --quiet) and 
   const status = sh('bash scripts/hook-status.sh');
   assert.equal(status.status, 0, 'a reminder, not a failure');
   assert.match(status.stdout, /Rule candidates seen twice or more[^]*quality\/ADD_RULE\.md[^]*\n {2}- client IP read from X-Forwarded-For \(seen 2\)\n {2}- fakes drift from interfaces \(seen 3\)\n/);
-  assert.doesNotMatch(status.stdout, /only once|not a candidate/);
+  assert.doesNotMatch(status.stdout, /only once|not a candidate|raw SQL/);
+  assert.match(status.stdout, /• 1 more rule candidate\(s\) at Seen 2 or more are blocked until something else is done/);
+  assert.match(status.stdout, /ask the user whether you may add/);
   assert.doesNotMatch(sh('bash scripts/hook-status.sh --quiet').stdout, /Rule candidates/, 'pre-commit stays quiet');
   const report = sh('node scripts/gate-report.mjs');
-  assert.match(report.stdout, /waiting for the agent to add them as rules[^]*\n {4}2 {2}client IP read from X-Forwarded-For\n {4}3 {2}fakes drift from interfaces/);
+  assert.match(report.stdout, /waiting for the agent to propose them as rules[^]*\n {4}2 {2}client IP read from X-Forwarded-For\n {4}3 {2}fakes drift from interfaces\n/);
+  assert.match(report.stdout, /blocked until something else is done:\n {4}4 {2}raw SQL in handlers/);
 });
 
 test('a check that fails while a dependency outside the change is missing is reported as setup, not as a failure', () => {

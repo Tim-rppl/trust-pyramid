@@ -1,8 +1,9 @@
 # Adding a rule
 
-How a corrected mistake becomes a lint rule or a test in this project. **The agent does this
-itself** and opens a pull request; the user's part is to approve it. Do not wait for a maintainer,
-and do not leave "maintainer to add" in `quality/rule-candidates.md`.
+How a corrected mistake becomes a lint rule or a test in this project. **The agent proposes it and,
+once the user agrees, does all of it** and opens a pull request; the user's part is to say yes and
+to approve the pull request. Do not wait for a maintainer, and do not leave "maintainer to add" in
+`quality/rule-candidates.md`.
 
 ## When
 
@@ -10,8 +11,12 @@ and do not leave "maintainer to add" in `quality/rule-candidates.md`.
 - A row in `quality/rule-candidates.md` reaches `Seen` 2 (`bash scripts/hook-status.sh` lists them).
 - A confirmed reviewer finding has a `rule_candidate`.
 
-Finish the task at hand first, then tell the user in one sentence which rule you will add, and add
-it in the same session unless they say not now. Keep it out of the feature's pull request.
+Finish the task at hand first. Then **ask** the user in one plain sentence and wait for the answer,
+for example: "This is the second time X happened. May I add a rule for it in a separate worktree and
+open a pull request for you to approve?" Do not create the worktree before they say yes: rule
+changes edit gate files, and the user's yes is what authorizes that (in Claude Code's auto mode the
+permission check looks for exactly this). On a yes, add it in the same session; on "not now", record
+it in `quality/rule-candidates.md` and go on. Keep it out of the feature's pull request.
 
 ## Where: a separate worktree
 

@@ -143,9 +143,10 @@ The rule set grows with use:
 2. The agent fixes it and turns the correction into a lint rule or a test.
 3. From then on every gate checks for it, for every agent and every person.
 
-The agent does each step, and opens the pull request that adds the rule on its own. Your part is to
-say when something is wrong and to approve those pull requests (gate files are protected, so rule
-changes always go through one).
+The agent does each step. When a mistake repeats, it asks "may I add a rule for this?" and, on your
+yes, opens the pull request that adds it. Your part is to say when something is wrong, answer that
+question, and approve those pull requests (gate files are protected, so rule changes always go
+through one).
 
 Expect to step in often in the first weeks, and less as the rules accumulate. Lauren Tan said it took
 her six months of this work before she could ship thousands of pull requests, many of them while

@@ -16,7 +16,8 @@ export function isoWeek(date) {
   return `${day.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
-/** Ledger rows with Seen >= 2, from the first table that has a "Seen" column: [{ kind, seen }]. */
+/** Ledger rows with Seen >= 2, from the first table that has a "Seen" column: [{ kind, seen, blocked }].
+ * blocked: a cell starts with "Blocked until" (the rule waits for something else first). */
 export function waitingCandidates(text) {
   const rows = [];
   let col = -1;
@@ -26,7 +27,7 @@ export function waitingCandidates(text) {
     if (col < 0) { col = cells.findIndex(cell => /^seen/i.test(cell)); continue; }
     if (/^\s*\|[\s:|-]+$/.test(line)) continue;
     const seen = Number.parseInt(cells[col] ?? '', 10);
-    if (seen >= 2) rows.push({ kind: cells[col > 1 ? 1 : 0], seen });
+    if (seen >= 2) rows.push({ kind: cells[col > 1 ? 1 : 0], seen, blocked: cells.some(cell => /^blocked until/i.test(cell)) });
   }
   return rows;
 }
@@ -75,10 +76,16 @@ function main() {
   }
   if (known.length) console.log(`Never fired: ${report.neverFired.join(', ') || 'none'}`);
   const ledger = option('--candidates') ?? 'quality/rule-candidates.md';
-  const waiting = existsSync(ledger) ? waitingCandidates(readFileSync(ledger, 'utf8')) : [];
+  const candidates = existsSync(ledger) ? waitingCandidates(readFileSync(ledger, 'utf8')) : [];
+  const waiting = candidates.filter(row => !row.blocked);
+  const blocked = candidates.filter(row => row.blocked);
   if (waiting.length) {
-    console.log(`\nRule candidates seen twice or more, waiting for the agent to add them as rules (quality/ADD_RULE.md):`);
+    console.log(`\nRule candidates seen twice or more, waiting for the agent to propose them as rules (quality/ADD_RULE.md):`);
     for (const { kind, seen } of waiting) console.log(`  ${String(seen).padStart(3)}  ${kind}`);
+  }
+  if (blocked.length) {
+    console.log(`\nRule candidates seen twice or more, blocked until something else is done:`);
+    for (const { kind, seen } of blocked) console.log(`  ${String(seen).padStart(3)}  ${kind}`);
   }
 }
 

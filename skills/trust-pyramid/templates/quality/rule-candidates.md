@@ -5,8 +5,11 @@ into rules itself, as `quality/ADD_RULE.md` describes.
 
 - Add a row the first time a mistake is corrected and nothing can catch it yet. Bump `Seen` (a
   number) each time it happens again.
-- At `Seen` 2 or more, turn it into a rule or a test after the current task, and delete the row in
-  that pull request. `bash scripts/hook-status.sh` lists such rows at the start of every session.
+- At `Seen` 2 or more, after the current task, ask the user whether you may turn it into a rule or
+  a test, and on a yes do it and delete the row in that pull request. `bash scripts/hook-status.sh`
+  lists such rows at the start of every session.
+- If a real blocker comes first (existing violations must be fixed first), start "Why not a rule
+  yet" with `Blocked until <what>`; the reminder then only counts the row. Remove it once that is done.
 - "Why not a rule yet" must be a real reason: seen once so far; not visible in the source and no
   test can catch it; existing violations must be fixed first. "The file is protected" or "a
   maintainer has to add it" is never a reason: gate files change through a pull request from a

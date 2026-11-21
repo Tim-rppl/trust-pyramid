@@ -6,12 +6,15 @@ The rule set now grows on its own. Field tests showed that installed projects ga
 setup: the workflow for adding one lived only in the skill, and the ledger told agents to wait for a
 maintainer (#50). Also fixes from the 0.4.4 field test (#43-#49).
 
-- **The agent adds rules itself (#50):** a new project file, `quality/ADD_RULE.md`, describes the
-  whole route: separate worktree, `check.sh --setup`, absolute paths, rule plus fixtures plus test,
-  and a pull request the user approves. `AGENTS.md` points to it and says a protected file is never
+- **The agent proposes rules and adds them itself (#50):** a new project file, `quality/ADD_RULE.md`,
+  describes the whole route: after the task, ask the user in one sentence and wait for a yes (the
+  yes is also what Claude Code's auto-mode permission check needs before gate files are edited);
+  then a separate worktree, `check.sh --setup`, absolute paths, rule plus fixtures plus test, and a
+  pull request the user approves. `AGENTS.md` points to it and says a protected file is never
   a reason to wait for a maintainer. The ledger template lists the valid reasons for "not a rule
   yet". `hook-status.sh` (run at the start of each session) and `gate-report.mjs` list ledger rows at
-  `Seen` 2 or more. A confirmed reviewer finding's `rule_candidate` goes into a rule or the ledger.
+  `Seen` 2 or more; a row whose reason starts with `Blocked until` is only counted, so the list
+  holds rows the agent can act on now. A confirmed reviewer finding's `rule_candidate` goes into a rule or the ledger.
   The setup report tells the user that rule pull requests will come and that their part is to
   approve them.
 - **Worktree paths (#46):** `ADD_RULE.md`, `upgrade.md` and `hook-status.sh` say to use absolute
@@ -42,6 +45,9 @@ maintainer (#50). Also fixes from the 0.4.4 field test (#43-#49).
   its header with the new template's, and rewrite every row whose reason is "protected" or whose plan
   waits for a maintainer: give the real reason, or, at `Seen` 2 or more, turn it into a rule after the
   upgrade (`quality/ADD_RULE.md`).
+- `scripts/check.sh` keeps its project sections as the project wrote them, comments included, so the
+  explanation above `SETUP` stays at the 0.4.4 text. Copy the new comment block (it documents the
+  `|<prefixes>` field) from the template's `trust-pyramid:project-start local` section.
 - Optional: add path prefixes to `SETUP` entries, so docs-only commits are not held up.
 - Older entries in `.quality-state/gate-log.jsonl` include manual and probe runs. Delete the file to
   start counting afresh.

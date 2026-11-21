@@ -58,7 +58,7 @@ so Trust Pyramid enforces it:
 ## Daily use
 
 ```text
-# A mistake you want stopped for good (the agent also does this on its own when a mistake repeats)
+# A mistake you want stopped for good (when a mistake repeats, the agent also asks you on its own)
 Turn this into a rule as quality/ADD_RULE.md describes: <the mistake>.
 
 # Before a pull request
