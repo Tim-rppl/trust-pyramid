@@ -17,7 +17,7 @@ report() { (( quiet )) || echo "$1"; }
 registered() { local f; for f in "$@"; do [[ -f "$f" ]] && grep -q 'scripts/stop-gate\.sh' "$f" && { echo "$f"; return 0; }; done; return 1; }
 
 # In a linked git worktree (.git is a file), the host's settings live in the main checkout: the Stop
-# hook registered there checks this worktree too (stop-gate.sh checks every worktree with changes).
+# hook registered there checks this worktree too, when the session works in it (see stop-gate.sh).
 main=""
 if [[ -f .git ]]; then
   main=$(git worktree list --porcelain | sed -n '1s/^worktree //p')

@@ -4,6 +4,8 @@
 #   scripts/check.sh --staged   staged changes only (pre-commit)
 #   scripts/check.sh --all      everything (CI)
 #   scripts/check.sh --fast     only checks marked |fast (the agent's Stop hook: seconds, not minutes)
+#   scripts/check.sh --setup    install the dependencies listed in SETUP that are missing (a fresh worktree)
+# Exit status: 0 pass, 1 a check failed, 3 dependencies in SETUP are missing, so no check ran.
 # With TRUST_GATE set (stop-hook, pre-commit, ci), each failing check is recorded by scripts/gate-log.sh.
 # Every check has a time limit, so a test that never exits (an open socket, a timer) fails with a clear
 # message instead of hanging every gate: 120 s for |fast checks, 900 s for the others.
@@ -29,6 +31,49 @@ CHECKS=(
   # "app/ tests/ pyproject.toml|python: tests|.venv/bin/pytest -q -rf --tb=short"
 )
 # trust-pyramid:project-end checks
+
+# trust-pyramid:project-start local
+# Dependencies the checks need: <path that exists once installed>|<install command>, one per package.
+# A fresh git worktree has none, and missing tools would read as failures in the change; with a path
+# missing, check.sh runs nothing, says "setup needed" and exits 3, and  scripts/check.sh --setup
+# installs it. For npm, use node_modules/.package-lock.json: npm writes it last, so an install still
+# running counts as missing.
+SETUP=(
+  # "web/node_modules/.package-lock.json|npm --prefix web ci"
+  # "lint/node_modules/.package-lock.json|npm --prefix lint ci"
+)
+# Test suites check.sh does not run (they need an emulator, a database, a device...), with where
+# they do run: <label>|<reason>. They are printed after the results, so a green list is not read as
+# "every test ran". Every test script of the project is either in CHECKS or here.
+NOT_RUN=(
+  # "functions: emulator tests|needs the Firebase emulator; CI job \"Cloud Functions\" runs them"
+)
+# trust-pyramid:project-end local
+
+missing_setup() {  # one "<path>|<command>" line per missing dependency
+  local entry path install
+  for entry in ${SETUP[@]+"${SETUP[@]}"}; do
+    IFS='|' read -r path install <<<"$entry"
+    [[ -e "$path" ]] || printf '%s|%s\n' "$path" "$install"
+  done
+}
+if [[ "${1:-}" == "--setup" ]]; then
+  while IFS='|' read -r path install; do
+    [[ -n "$path" ]] || continue
+    echo "→ $install"
+    bash -c "$install" || echo "✗ failed: $install"
+  done <<<"$(missing_setup)"
+  if [[ -n "$(missing_setup)" ]]; then echo "✗ still missing:"; missing_setup | sed 's/|.*//; s/^/  /'; exit 1; fi
+  echo "✓ dependencies installed"
+  exit 0
+fi
+missing=$(missing_setup)
+if [[ -n "$missing" ]]; then
+  echo "setup needed in $PWD: dependencies are missing, so no check ran (not a problem in the change)."
+  while IFS='|' read -r path install; do echo "  missing $path  (installed by: $install)"; done <<<"$missing"
+  echo "  Run: bash scripts/check.sh --setup   (in $PWD), then check again."
+  exit 3
+fi
 
 fast_only=0
 if [[ "${1:-}" == "--fast" ]]; then fast_only=1; shift; fi
@@ -114,4 +159,10 @@ for entry in "${CHECKS[@]}"; do
   failed=1
 done
 
+if (( ! fast_only )); then
+  for entry in ${NOT_RUN[@]+"${NOT_RUN[@]}"}; do
+    IFS='|' read -r label reason <<<"$entry"
+    echo "• not run here: $label ($reason)"
+  done
+fi
 exit $failed

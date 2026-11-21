@@ -22,7 +22,7 @@ function oxlintBin() {
 
 export function runOxlint(args, { cwd = ROOT } = {}) {
   const bin = oxlintBin();
-  if (!bin) return { status: 2, stdout: '', stderr: 'oxlint is not installed. Install it as a dev dependency (npm i -D oxlint).' };
+  if (!bin) return { status: 2, stdout: '', stderr: 'oxlint is not installed here. In a fresh worktree run: bash scripts/check.sh --setup. Otherwise add it as a dev dependency (npm i -D oxlint).' };
   return spawnSync(process.execPath, [bin, ...args], { cwd, encoding: 'utf8' });
 }
 

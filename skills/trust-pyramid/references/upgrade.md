@@ -38,6 +38,9 @@ examples there never conflict. Keep the markers when editing these files.
    ```bash
    git worktree add ../<repo>-tp-upgrade -b chore/trust-pyramid-<version>
    ```
+   A fresh worktree has no dependencies. Install them before running any check
+   (`bash scripts/check.sh --setup` once `SETUP` lists them; before that, the project's own install
+   commands, such as `npm ci --prefix lint`), or the checks fail on missing tools.
 3. In the worktree: `node <skill>/tools/upgrade.mjs upgrade --project .` (add `--dry-run` first to
    show the user what will change). Exit code 3 means conflicts.
 4. Resolve every conflict block. Keep the project's intent and the template's fix; when they truly

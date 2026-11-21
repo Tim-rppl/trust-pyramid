@@ -4,7 +4,8 @@ Use whenever a mistake is corrected (by the human, a reviewer finding, a revert,
 
 **Where to work.** Rules live in protected gate files (`lint/`, `scripts/`, ...), which the
 per-machine deny list blocks in the main checkout. Do the steps below in a separate worktree on its
-own branch (`git worktree add ../<repo>-rule-<name> -b rule/<name>`), where that list does not apply,
+own branch (`git worktree add ../<repo>-rule-<name> -b rule/<name>`, then `bash scripts/check.sh
+--setup` in it to install dependencies), where that list does not apply,
 and finish with a PR for a human to review (`references/gates.md`, "Changing gate files"). If you
 are in the main checkout and an edit is denied, do not look for a way around it: tell the user to
 start a rule session in a worktree, and list the exact edits.

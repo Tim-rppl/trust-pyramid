@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.4.4 - 2026-11-21
+
+Fixes from a field test of 0.4.3 (#38-#41).
+
+- **The first failed Stop of a session blocks again:** the Stop hook blocks with
+  `{"decision": "block", "reason": ...}` on stdout and exit 0, the form both hosts document, instead
+  of exit 2 with stderr. In 0.4.3 a shell error ("No such file or directory") on the first failure of
+  each session made Claude Code read the hook as a missing script and let the turn end; a failing
+  check that prints that text had the same effect (#38).
+- **Session worktrees are matched reliably:** paths are normalized before matching (`C:\\...` in
+  JSON, `C:/...`, Git Bash `/c/...`, `/cygdrive/c/...`, any letter case) and must match as a whole
+  path, so `.../app-feature` no longer selects `.../app`. `STOP_GATE_WORKTREES=1` means `all` again;
+  unknown values check every worktree and say so (#39).
+- **Missing dependencies are not reported as failures:** `check.sh` gets a `SETUP` list. When a
+  listed path is missing (a fresh worktree), it runs no check, prints `setup needed` and exits 3;
+  `check.sh --setup` installs. The Stop hook asks for the install without using up a fix attempt.
+  The lint fixture test explains a missing linter instead of failing on JSON (#40).
+- **Suites that do not run locally are named:** `check.sh` gets a `NOT_RUN` list (label, reason,
+  where it runs), printed after the results, so a green list is not read as "every test ran". Setup
+  lists every test script as a `CHECKS` or `NOT_RUN` entry (#41).
+
+### Upgrade notes
+
+- `scripts/stop-gate.sh`, `scripts/check.sh`, `scripts/hook-status.sh`, `lint/oxlint.mjs` and
+  `lint/project-plugin.test.mjs` change; the upgrade merges them. `check.sh` gets a new project
+  section (`trust-pyramid:project-start local`) with empty `SETUP` and `NOT_RUN` lists.
+- After the upgrade, fill both lists: `SETUP` with each package's install command (check it in a
+  fresh worktree), `NOT_RUN` with every test suite that `CHECKS` does not run, and why.
+- Fresh worktrees: run `bash scripts/check.sh --setup` before the first check.
+
 ## 0.4.3 - 2026-11-21
 
 Fixes from a field test of 0.4.2 (#32-#36).
