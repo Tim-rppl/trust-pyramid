@@ -16,12 +16,30 @@ problems=()
 report() { (( quiet )) || echo "$1"; }
 registered() { local f; for f in "$@"; do [[ -f "$f" ]] && grep -q 'scripts/stop-gate\.sh' "$f" && { echo "$f"; return 0; }; done; return 1; }
 
+# In a linked git worktree (.git is a file), the host's settings live in the main checkout: the Stop
+# hook registered there checks this worktree too (stop-gate.sh checks every worktree with changes).
+main=""
+if [[ -f .git ]]; then
+  main=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
+  report "• This is a linked git worktree of $main. The Stop hook registered there also checks this worktree's"
+  report "  uncommitted changes. The per-machine deny list does not apply here, by design: gate changes are"
+  report "  made in a worktree and reach the default branch through a reviewed pull request."
+fi
+claude_settings=(.claude/settings.json .claude/settings.local.json)
+codex_settings=(.codex/hooks.json)
+state=.quality-state
+if [[ -n "$main" ]]; then
+  claude_settings+=("$main/.claude/settings.json" "$main/.claude/settings.local.json")
+  codex_settings+=("$main/.codex/hooks.json")
+  state="$main/.quality-state"
+fi
+
 expect_claude=0; expect_codex=0
 grep -qs 'stop-gate\.sh' quality/install/claude-settings.json quality/install/claude-settings.local.json && expect_claude=1
 grep -qs 'stop-gate\.sh' quality/install/codex-hooks.json && expect_codex=1
 
-claude_file=$(registered .claude/settings.json .claude/settings.local.json) && claude_on=1 || claude_on=0
-codex_file=$(registered .codex/hooks.json) && codex_on=1 || codex_on=0
+claude_file=$(registered "${claude_settings[@]}") && claude_on=1 || claude_on=0
+codex_file=$(registered "${codex_settings[@]}") && codex_on=1 || codex_on=0
 (( claude_on )) && report "✓ Claude Code Stop hook: registered in $claude_file"
 (( codex_on )) && report "✓ Codex Stop hook: registered in $codex_file (Codex asks you to trust it once)"
 
@@ -33,7 +51,7 @@ elif (( ! claude_on && ! codex_on )); then
 fi
 
 # Settings that switch every hook off win over the project's hook config.
-for f in "$HOME/.claude/settings.json" .claude/settings.json .claude/settings.local.json; do
+for f in "$HOME/.claude/settings.json" "${claude_settings[@]}"; do
   if [[ -f "$f" ]] && grep -Eq '"disableAllHooks"[[:space:]]*:[[:space:]]*true' "$f"; then
     problems+=("$f sets \"disableAllHooks\": true, so Claude Code runs no hooks at all")
   fi
@@ -45,8 +63,8 @@ else
   problems+=("pre-commit is NOT enabled in this clone: git config core.hooksPath .githooks")
 fi
 
-if [[ -f .quality-state/stop-gate-last-run ]]; then
-  report "✓ Stop hook last ran: $(cat .quality-state/stop-gate-last-run)"
+if [[ -f "$state/stop-gate-last-run" ]]; then
+  report "✓ Stop hook last ran: $(cat "$state/stop-gate-last-run")"
 elif (( claude_on || codex_on )); then
   report "• Stop hook has not run yet in this clone: start a NEW agent session and end one turn to confirm it fires."
 fi

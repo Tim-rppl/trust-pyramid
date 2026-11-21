@@ -70,6 +70,43 @@ test('a newly added suppression comment is rejected; allowed ones need the prote
   assert.match(trusted.stdout, /new suppression comments[\s\S]*src\/app\.js:2/);
 });
 
+test('a newly skipped or focused test is rejected, in test files only', () => {
+  const skipped = [
+    ['src/app.test.js', "it.skip('adds', () => {});"],
+    ['src/app.test.ts', "test.only('adds', () => {});"],
+    ['src/app.spec.tsx', "describe.skip('app', () => {});"],
+    ['test/api.test.mjs', "test('adds', { skip: true }, () => {});"],
+    ['tests/test_api.py', '@pytest.mark.skip(reason="flaky")'],
+    ['tests/test_api.py', '    pytest.skip("later")'],
+    ['pkg/api_test.go', '\tt.Skip("later")'],
+    ['src/__tests__/app.js', "xit('adds', () => {});"],
+  ];
+  for (const [path, line] of skipped) {
+    const { dir, git } = project();
+    writeFiles(dir, { [path]: `${line}\n` });
+    git('add', '-A');
+    const result = spawnSync('bash', ['scripts/no-suppressions.sh', 'base'], { cwd: dir, encoding: 'utf8' });
+    assert.equal(result.status, 1, `${path}: ${line}`);
+    assert.match(result.stdout, new RegExp(`new skipped or focused tests[\\s\\S]*${path.replace(/[.]/g, '\\.')}:1`));
+  }
+
+  // The same words outside test files, and ordinary test code, are fine.
+  const { dir, git } = project();
+  writeFiles(dir, {
+    'src/menu.js': "export const items = [{ label: 'Skip intro', skip: true }];\nit.skip = 1;\n",
+    'src/app.test.js': "it('skips nothing', () => { const todo = { todo: 'buy milk' }; expect(skipIntro(todo)).toBe(true); });\n",
+  });
+  git('add', '-A');
+  const clean = spawnSync('bash', ['scripts/no-suppressions.sh', 'base'], { cwd: dir, encoding: 'utf8' });
+  assert.equal(clean.status, 0, clean.stdout);
+
+  // An approved exception goes through the protected allowlist.
+  const allowed = project();
+  writeFiles(allowed.dir, { 'src/app.test.js': "it.skip('windows only', () => {});\n", 'quality/allowed-suppressions.txt': "it.skip('windows only'\n" });
+  allowed.git('add', '-A');
+  assert.equal(spawnSync('bash', ['scripts/no-suppressions.sh', 'base'], { cwd: allowed.dir, encoding: 'utf8' }).status, 0);
+});
+
 test('a clean PR passes, and a PR that changes gate files is flagged but not failed', () => {
   const { dir, git } = project();
   writeFiles(dir, { 'src/app.js': 'export const ok = 2;\n', 'lint.conf': 'enabled\n# stricter soon\n' });

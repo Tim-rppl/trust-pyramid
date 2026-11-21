@@ -76,6 +76,25 @@ test('stop-gate prints JSON on success and blocks with exit 2 on failure, then h
   assert.equal(nextRound.status, 2, 'a new turn starts counting again');
 });
 
+test('a check that never exits is stopped at its time limit, with the children that hold the output', () => {
+  const { dir } = repoWithChecks();
+  const check = join(dir, 'scripts/check.sh');
+  writeFileSync(check, readFileSync(check, 'utf8').replace(/CHECKS=\([\s\S]*?\n\)/,
+    'CHECKS=(\n  ".|hangs (background child keeps the pipe open)|bash app/hang.sh|fast,timeout=2"\n  ".|quick|true|fast"\n  ".|slow default|bash app/hang.sh"\n)'));
+  writeFiles(dir, { 'app/hang.sh': '#!/usr/bin/env bash\necho "1 test failed"\nsleep 300 &\nsleep 300\n' });
+  const started = Date.now();
+  const fast = run(dir, 'scripts/check.sh --fast --all');
+  assert.ok(Date.now() - started < 30000, 'the gate does not wait for the hung process');
+  assert.equal(fast.status, 1);
+  assert.match(fast.stdout, /✗ hangs \(background child keeps the pipe open\) \(timed out after 2s\)/);
+  assert.match(fast.stdout, /1 test failed[\s\S]*open socket, server or timer/);
+  assert.match(fast.stdout, /✓ quick/, 'a "fast,timeout=N" check still counts as fast; the others run');
+  assert.doesNotMatch(fast.stdout, /slow default/);
+
+  const env = spawnSync('bash', ['-c', 'scripts/check.sh --all'], { cwd: dir, encoding: 'utf8', env: { ...process.env, TRUST_CHECK_TIMEOUT: '2' } });
+  assert.match(env.stdout, /✗ slow default \(timed out after 2s\)/, 'TRUST_CHECK_TIMEOUT sets the default limit');
+});
+
 test('pre-commit blocks a commit whose staged files fail the checks', () => {
   const { dir, git } = repoWithChecks();
   writeFiles(dir, { 'app/value.txt': 'broken\n' });
@@ -303,6 +322,37 @@ test('the Codex Stop hook command works from a subdirectory and hands over visib
   } finally {
     rmSync(outside, { recursive: true, force: true });
   }
+});
+
+test('the Stop hook started from the main checkout also checks git worktrees with uncommitted changes', () => {
+  const { dir, git } = repoWithChecks();
+  const worktree = join(tempDir(), 'agent work', 'wt'); // a space in the path, as in real folders
+  git('worktree', 'add', '-q', '-b', 'fix/thing', worktree);
+  const hook = (env = {}) => spawnSync('bash', [join(dir, 'scripts/stop-gate.sh')], { cwd: dir, encoding: 'utf8', input: '{}', env: { ...process.env, ...env } });
+
+  assert.deepEqual(JSON.parse(hook().stdout), {}, 'a clean worktree is not checked');
+  writeFiles(worktree, { 'app/value.txt': 'broken\n' });
+  const blocked = hook();
+  assert.equal(blocked.status, 2, 'the main checkout is clean, but the worktree is not');
+  assert.match(blocked.stderr, /In the git worktree .*agent work\/wt \(uncommitted changes there\):\n✗ app: value is ok/);
+  assert.match(blocked.stderr, /If that work is not yours \(another session's\), tell the user/);
+  assert.match(blocked.stderr, /not ok - value/);
+  assert.equal(hook({ STOP_GATE_WORKTREES: '0' }).status, 0, 'STOP_GATE_WORKTREES=0 checks the main checkout only');
+});
+
+test('hook-status in a linked worktree reads the main checkout\'s hook settings and says what covers it', () => {
+  const { dir, git } = repoWithStagedHooks();
+  const home = tempDir();
+  const sh = (cwd, command) => spawnSync('bash', ['-c', command], { cwd, encoding: 'utf8', input: '', env: { ...process.env, HOME: home } });
+  sh(dir, 'bash scripts/install-agent-hooks.sh --yes');
+  git('add', '-A');
+  git('commit', '-q', '-m', 'hooks staged', '--no-verify');
+  const worktree = join(tempDir(), 'wt two');
+  git('worktree', 'add', '-q', '-b', 'rule/x', worktree);
+  const status = sh(worktree, 'bash scripts/hook-status.sh');
+  assert.match(status.stdout, /This is a linked git worktree of /);
+  assert.match(status.stdout, /✓ Claude Code Stop hook: registered in .*\.claude\/settings\.json/);
+  assert.doesNotMatch(status.stdout, /Claude Code Stop hook is NOT enabled/);
 });
 
 test('gate interceptions are logged per gate with rule IDs, and gate-report summarizes them', () => {

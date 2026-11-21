@@ -29,8 +29,10 @@ hooks fall to the same tricks. Three defenses, all installed by this skill:
    protected paths in the working tree to the base versions, so run it only in CI or in a
    throwaway clone.
 2. **No new suppressions** - `scripts/no-suppressions.sh` fails when a change adds
-   `eslint-disable`, `@ts-ignore`, `# noqa`, `# type: ignore` and similar. Exceptions go into
-   `quality/allowed-suppressions.txt`, which is protected.
+   `eslint-disable`, `@ts-ignore`, `# noqa`, `# type: ignore` and similar, and when a test file gains
+   a skipped or focused test (`it.skip`, `test.only`, `describe.skip`, `xit`, `{ skip: true }`,
+   `@pytest.mark.skip`, `pytest.skip()`, `@unittest.skip`, Go `t.Skip()`). Exceptions go into
+   `quality/allowed-suppressions.txt`, which is protected. A deleted test is not detected.
 3. **Humans own the gate files** - `.github/CODEOWNERS` lists the protected paths; enable "Require
    review from Code Owners". Claude Code's `permissions.deny` in `.claude/settings.local.json` blocks
    the agent's edit tools on those paths (friction only: shell commands can still change files, which
@@ -73,6 +75,11 @@ prefixes, a label, a command). Behavior:
   jest/vitest/go output; long lines are cut (assertion dumps of whole files hide the real error).
   For other runners, pick a reporter that prints a failure summary and extend `summarize()`.
 - Exit code is the only contract.
+- Every check has a time limit (120 s for `fast`, 900 s otherwise; `TRUST_CHECK_TIMEOUT` or a
+  per-check `fast,timeout=<seconds>` changes it). A check that runs out is stopped with its child
+  processes and reported as `✗ <label> (timed out after Ns)` with a hint: usually a socket, server
+  or timer left open. Also give the test runner its own limit (`node --test --test-timeout=<ms>`,
+  `pytest-timeout`, `go test -timeout`), and set `timeout-minutes` on CI jobs (the templates do).
 - Prefer calling tools directly (`node_modules/.bin/tsc -p web --noEmit`, `node lint/oxlint.mjs ...`,
   the test runner with explicit files) over `npm run <script>`: what a direct command does is defined
   in `scripts/check.sh`, which is protected. When a check does go through an npm script,
@@ -102,6 +109,12 @@ which a reminder inside a hook cannot.
   changed directory, or the host may start hooks elsewhere). If it cannot find it, it prints
   `stop-gate: cannot find the repository` as a visible `systemMessage` and lets the turn end: never
   silent, and never a block the agent cannot clear (exit 2 there would loop until the host's cap).
+- Also checks every linked git worktree with uncommitted changes, with that worktree's own
+  `scripts/check.sh`: the host starts the hook from the main checkout, but agents often edit in a
+  worktree. Failures are labeled with the worktree path; if it is another session's work, the agent
+  tells the user instead of changing it. `STOP_GATE_WORKTREES=0` turns this off. The per-machine
+  deny list does not apply in worktrees, by design (gate changes are made there and reach the
+  default branch through a reviewed pull request).
   Register it as `bash "$CLAUDE_PROJECT_DIR/scripts/stop-gate.sh"` (Claude Code) so neither the
   executable bit nor the shebang matters (Windows). Codex has no project-directory variable; its
   command finds the repository from the session directory (subfolders work) and, outside any

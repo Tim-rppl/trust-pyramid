@@ -17,6 +17,7 @@ concurrency:
 jobs:
   ai-review:
     runs-on: ubuntu-latest
+    timeout-minutes: 20  # a hung test fails the job instead of running for 6 hours
     permissions:
       contents: read
       pull-requests: write
@@ -103,6 +104,7 @@ jobs:
   review-gate:
     needs: ai-review
     runs-on: ubuntu-latest
+    timeout-minutes: 10  # a hung test fails the job instead of running for 6 hours
     steps:
       - uses: actions/checkout@v5
         with: { fetch-depth: 0 }

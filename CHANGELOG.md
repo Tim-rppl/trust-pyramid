@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.4.2 - 2026-11-21
+
+Fixes from a field test of 0.4.1 on a real project (#26, #27, #28; report in #29).
+
+- **Skipped and focused tests are caught:** `no-suppressions.sh` fails when a test file gains
+  `it.skip`, `test.only`, `describe.skip`, `xit`, `{ skip: true }`, `@pytest.mark.skip`,
+  `pytest.skip()`, `@unittest.skip` or Go `t.Skip()`, with the same protected allowlist (#27).
+- **Checks have a time limit:** `check.sh` stops a check that runs too long (120 s for fast checks,
+  900 s for the others; `TRUST_CHECK_TIMEOUT` or `fast,timeout=<seconds>`), with its child
+  processes, and says it timed out. CI templates set `timeout-minutes` (#28).
+- **Worktrees are checked:** the Stop hook also checks every linked git worktree with uncommitted
+  changes, and `hook-status.sh` in a worktree reads the main checkout's hook settings (#26).
+- **Docs:** test runner time limits per stack; run long suites in the background.
+
+### Upgrade notes
+
+- `scripts/check.sh`, `scripts/stop-gate.sh`, `scripts/no-suppressions.sh`, `scripts/hook-status.sh`
+  and the CI workflows change; the upgrade merges them. The new skip check applies to lines added
+  after the upgrade, not to skips already in the code.
+- A check that legitimately takes longer than 120 s (fast) or 900 s needs `timeout=<seconds>` in its
+  `CHECKS` entry.
+
 ## 0.4.1 - 2026-11-21
 
 Fixes from a field test of the 0.4.0 upgrade on a real project (#23).
